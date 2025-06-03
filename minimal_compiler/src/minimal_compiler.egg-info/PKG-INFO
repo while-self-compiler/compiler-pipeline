@@ -1,0 +1,82 @@
+Metadata-Version: 2.2
+Name: minimal-compiler
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: antlr4-python3-runtime>=4.13.2
+
+# Minimal Compiler (WHILE to WebAssembly)
+
+Used for stage 1 of bootstrapping. It is a minimal compiler that compiles a simple WHILE language to WASM.
+
+
+## Usage
+### Setup
+
+To build the compiler, you need to run the following command:
+```bash
+./build.sh
+```
+
+### Compile a program
+
+To compile a while program, you need to run the following command:
+```bash
+./run.sh <path_to_program>
+```
+
+This will generate a `.wat` file in the same directory as the input program.
+To assemble the `.wat` file to a `.wasm` file, you need to run the following command: (See [WebAssembly Binary Toolkit](https://github.com/WebAssembly/wabt) for more information)
+```bash
+wat2wasm <path_to_program>.wat
+```
+
+### Run via Node.js
+
+In the `./samples` directory, there is an example script `wasm_runner.js` which describes how to run a generated `.wasm` file with while input parameters. 
+
+The following full example demonstrates how to compile a while program and run it with input parameters:
+1. Create a while program
+```c
+x1 = x1 + 1;
+
+While x0 > 0 Do
+    x2 = x1 + 0; 
+    x3 = x0 - 1;
+    While x3 > 0 Do
+        x4 = x2 + 0;
+        While x2 > 0 Do
+            x1 = x1 + 1;
+            x2 = x2 - 1
+        End;
+        x2 = x4 + 0;
+        x3 = x3 - 1
+    End;
+    x0 = x0 - 1
+End;
+
+x0 = x1 + 0
+```
+This program calculates the factorial of the input `x0` and stores the result in `x0`. 
+In WHILE, the result is stored in `x0`. The Input are infinity amount of Variables `x0`, `x1`, `x2`, `x3`, `x4` and so on. Each is initialized with 0. To define them dynamically, we can set them as arguments (every other variable is defaultly initialized with 0).
+
+2. Compile the while program
+```bash
+./run.sh ./samples/factorial.while
+```
+
+3. Assemble the `.wat` file to a `.wasm` file
+```bash
+wat2wasm ./samples/factorial.wat
+```
+
+4. Run the `.wasm` file with input parameters
+```bash
+node ./samples/wasm_runner.js ./samples/factorial.wasm x0=5
+```
+
+This will output `120` which is the factorial of `5`. Note that you can pass multiple input parameters to the program by separating them with a space (e.g. `x0=5 x1=2 x2=3`).
+
+## TODO
+- Optional: Add semantic analysis visitors before the generation visitors

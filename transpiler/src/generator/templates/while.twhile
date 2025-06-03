@@ -1,0 +1,34 @@
+
+/***********************************************
+/ E-WHILE Transpiler: While Statement
+/ WHILE Condition DO
+/   Statement
+/ END
+
+
+// Approach:
+// 1. Compute the condition value
+// 2. If the condition is true, execute the statement
+//    2.1 Recompute the condition value after each iteration
+// 3. If the condition is false, skip the statement
+//
+//
+// while condition do 
+//    statement
+// end;
+//
+// <=>
+//
+// condition = condition calc 1
+// while condition > 0 do
+//    statement;
+//    condition = condition calc i (i > 1)
+// end
+
+[0] / gives condition calc 1 value in {{0}}
+
+while {{0}} > 0 do
+    [1];
+    [2] / gives condition calc i value in {{0}}
+end
+/***********************************************

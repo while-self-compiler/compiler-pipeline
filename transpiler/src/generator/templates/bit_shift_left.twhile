@@ -1,0 +1,39 @@
+
+/***********************************************
+/ E-WHILE Transpiler: Bit shift left
+/ {{0}} = {{1}} << {{2}}
+/ Approach: {{1}} << {{2}} = {{1}} * 2^{{2}}
+{{9}} = {{9}} + 1; / constant on 1
+{{0}} = {{1}} + 0;   
+{{3}} = {{2}} + 0; / temp variable (it resets to 0 automatically)
+{{4}} = {{9}} + 0; / temp variable (state gets changed after bit shift)
+
+/ calulate 2^{{2}} in {{4}}
+while {{3}} > 0 do
+
+    / {{4}} = {{4}} * 2
+    {{6}} = {{4}} + 0; / temp variable (it resets to 0 automatically)
+    while {{6}} > 0 do
+        {{6}} = {{6}} - 1;
+        {{4}} = {{4}} + 1
+    end;
+
+    {{3}} = {{3}} - 1
+end;
+
+{{5}} = {{4}} + 0; / temp variable (it resets to 0 automatically)
+{{10}} = {{7}} + 0; / temp variable
+
+/ {{10}} = {{1}} * {{4}}
+while {{5}} > 0 do
+    {{8}} = {{1}} + 0; / temp variable (it resets to 0 automatically)
+    while {{8}} > 0 do
+        {{10}} = {{10}} + 1;
+        {{8}} = {{8}} - 1
+    end;
+
+    {{5}} = {{5}} - 1
+end;
+{{4}} = {{5}} + 0; / reset {{4}} to 0 (else we have to calculate the invariant, which is more complex)
+{{0}} = {{10}} + 0
+/***********************************************

@@ -1,0 +1,30 @@
+/*
+
+Euler method for solving differential equations numerically.
+
+*/
+
+
+// constants
+h = 1;
+x = 0;
+y = 1;
+h = 1;
+
+
+// User input
+n = x1; 
+
+
+while n > 0 Do
+    f = x + y;
+    
+    y = h * f;
+    y = y + y;
+
+    x = x + h;
+
+    n = n - 1
+End;
+
+x0 = y + 0

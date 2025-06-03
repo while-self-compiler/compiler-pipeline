@@ -1,0 +1,4 @@
+let currentConstant, chunk, t;
+currentConstant = 11111111111111111111111111111111;
+t = 4294967296;
+x0 = currentConstant % t

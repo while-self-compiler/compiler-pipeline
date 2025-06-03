@@ -1,0 +1,8 @@
+x0 = 10000;
+if x0 != 10000 then
+    if x0 == 10000 then
+        x0 = 69
+    end
+else
+    x0 = 2
+end

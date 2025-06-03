@@ -1,0 +1,4 @@
+kleinere_zahl = 2000;
+groessere_zahl = 10000;
+
+x0 = groessere_zahl v? kleinere_zahl

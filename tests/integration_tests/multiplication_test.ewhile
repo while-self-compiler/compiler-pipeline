@@ -1,0 +1,14 @@
+let mulCounter, startValue, operand, modValue;
+
+startValue = 17;
+x0 = startValue;
+operand = 17;
+modValue = 4294967296;
+
+mulCounter = 100000;
+while mulCounter > 0 do
+    x0 = x0 * operand;
+    mulCounter = mulCounter - 1
+end;
+
+x0 = x0 % modValue

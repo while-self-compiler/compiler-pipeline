@@ -1,0 +1,19 @@
+
+
+
+
+let test;
+
+
+test = 1;
+
+
+if test == 0 then 
+    if test == 0 then   
+        x0 = 0
+    end
+else
+    if test != 0 then   
+        x0 = 1
+    end
+end

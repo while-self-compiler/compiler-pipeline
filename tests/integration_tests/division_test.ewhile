@@ -1,0 +1,16 @@
+let divCounter, operand, modValue, shift;
+
+x0 = 13;
+operand = 17;
+modValue = 4294967296;
+shift = 500000;
+
+x0 = x0 << shift;
+
+divCounter = 100000;
+while divCounter > 0 do
+    x0 = x0 / operand;
+    divCounter = divCounter - 1
+end;
+
+x0 = x0 % modValue

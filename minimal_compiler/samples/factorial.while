@@ -1,0 +1,18 @@
+x2 = x2 + 1;
+
+While x1 > 0 Do
+    x3 = x2 + 0;   
+    x4 = x1 - 1;   
+    While x4 > 0 Do
+        x5 = x3 + 0;
+        While x5 > 0 Do
+            x5 = x5 - 1;
+            x2 = x2 + 1
+        End;
+
+        x4 = x4 - 1
+    End;
+    x1 = x1 - 1
+End;
+
+x0 = x2 + 0

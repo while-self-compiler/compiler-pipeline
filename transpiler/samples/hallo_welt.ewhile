@@ -1,0 +1,32 @@
+/*
+
+Simple EWHILE Program to demonstrate unary lists.
+
+*/
+
+
+let list, shift, add, addAnother;
+shift = 1;
+
+add = x1;
+list = list << shift;
+    list = list + 1;
+    while add > 0 do
+        list = list << shift;
+        add = add - 1
+    end;
+
+add = x2;
+list = list << shift;
+    list = list + 1;
+    while add > 0 do
+        list = list << shift;
+        add = add - 1
+    end;
+
+
+if list == 3 then
+    x0 = 0 // empty list
+else
+    x0 = list
+end

@@ -1,0 +1,59 @@
+
+macro encodeLeb { // LEB128 encoding (unsigned)
+    temp = currentTranslation;
+    currentTranslation = 0;
+    lebByteAmount = 0;
+    tempTempTemp = 0;
+
+    shift = 31;
+    isNegative = temp >> shift; // get MSB
+
+    tempTemp = 128;
+    GENERATIONSIZE = 7;
+
+    while temp != 0 do
+        tempTempTemp = temp % tempTemp; // get lower 7 bits
+        temp = temp >> GENERATIONSIZE;
+
+        shift = 6;
+        highBit = tempTempTemp >> shift; // get MSB
+
+        if temp != 0 then
+            tempTempTemp = tempTempTemp + 128   // set MSB to 1 if more bytes to read
+        else
+            if highBit > 0 then
+                tempTempTemp = tempTempTemp + 128   // set MSB to 1 if more bytes to read
+            end
+        end;
+
+        GENERATIONSIZE = 8;
+        currentTranslation = currentTranslation << GENERATIONSIZE;
+        currentTranslation = currentTranslation + tempTempTemp; // add byte to translation
+
+        lebByteAmount = lebByteAmount + 1;
+
+        GENERATIONSIZE = 7;
+        tempTemp = 128
+    end;
+
+    if highBit > 0 then
+        GENERATIONSIZE = 8;
+        currentTranslation = currentTranslation << GENERATIONSIZE;
+        lebByteAmount = lebByteAmount + 1
+    end;
+
+    if isNegative > 0 then
+        temp = 112; // sign extension for negative numbers
+        currentTranslation = currentTranslation + temp
+    end;
+
+    if lebByteAmount == 0 then
+        lebByteAmount = 1
+    end
+}
+
+let currentTranslation, isNegative, lebByteAmount, temp, tempTemp, tempTempTemp, highBit, shift, GENERATIONSIZE;
+use encodeLeb;
+x0 = 69999;
+use encodeLeb;
+x0 = 0

@@ -1,0 +1,88 @@
+/***************************************************************
+
+  Program to extract the leftmost ASCII character from a 
+  base-256 encoded number.
+
+  Variables:
+    x1 : Input number (base-256 encoded ASCII text)
+    x0 : Output: ASCII code of the leftmost character
+    x2 : Current power of 256 (base value for extraction), initially 1
+    x3 : Candidate = x2 * 256 (computed by adding x2, 256 times)
+    x4 : Counter used to add x2 256 times (set to constant 256)
+    x5 : Temporary register for simulating subtraction (copy of x1 or x2)
+    x6 : Temporary register for simulating subtraction (copy of candidate)
+    x7 : Counter for how many times x2 can be subtracted from x1 (the digit)
+    x8 : Update flag used when increasing x2 (if candidate fits in x1)
+    x20: Constant zero (used as "0" source)
+    x40: Constant zero (alternative zero source)
+
+***************************************************************/
+
+
+/ Initialize variables
+x2 = x20 + 1;                               / Set x2 = 1 (initial power: 256^0)
+x8 = x20 + 1;                               / Set update flag to 1
+
+
+/ Determines the largest power of 256 (stored in x2) that fits into x1.
+/ This is done by computing a candidate x3 = x2 * 256 and checking if it fits into x1.
+while x8 > 0 do                             / While an update is possible:
+    x8 = x8 - 1;                            / Decrement update flag
+    x3 = x20 + 0;                           / Initialize candidate x3 = 0
+    x4 = x20 + 256;                         / Set counter x4 = 256
+
+    while x4 > 0 do                         / Repeat 256 times:
+        x5 = x2 + 0;                        / Copy x2 into x5
+        while x5 > 0 do                     / Add x2, x2 times:
+            x3 = x3 + 1;                    / Increment candidate (simulate adding 1 repeatedly)
+            x5 = x5 - 1                     / Decrement x5 by 1
+        end;
+        x4 = x4 - 1                         / Decrement counter x4
+    end;
+
+    x5 = x1 + 0;                            / Copy the input number x1 into x5
+    x6 = x3 + 0;                            / Copy candidate x3 into x6
+    while x6 > 0 do                         / Simulate subtraction: subtract candidate (x3) from x1
+        x6 = x6 - 1;                        / Decrement x6
+        x5 = x5 - 1                         / Decrement x5
+    end;
+
+    while x5 > 0 do                         / If x5 remains positive, candidate fits into x1:
+        x2 = x3 + 0;                        / Update x2 to the candidate (increase power of 256)
+        x8 = x8 + 1;                        / Set update flag to trigger another check
+        x5 = x40 + 0                        / Reset x5 to 0 using x40 as zero
+    end
+end;
+
+
+/ Subtracts this candidate from x1 to extract the leftmost digit.
+x7 = x20 + 0;                               / Initialize x7 = 0 (to count subtractions -> ASCII code)
+x5 = x1 + 0;                                / Copy the current x1 (remaining number) into x5
+x6 = x2 + 0;                                / Copy x2 (current base value) into x6
+while x6 > 0 do                             / Simulate a subtraction: subtract x2 once from x1
+    x6 = x6 - 1;                            / Decrement x6 by 1
+    x5 = x5 - 1                             / Decrement x5 by 1
+end;
+
+
+/ Subtracts x2 repeatedly from x1, counting the number of times (in x7).
+/ The counter x7 will contain the ASCII code of the leftmost character.
+while x5 > 0 do                             / While the remaining number is at least x2:
+    x6 = x2 + 0;                            / Copy x2 into x6 for subtraction loop
+    while x6 > 0 do                         / Subtract x2 from x1 (simulate subtraction)
+        x1 = x1 - 1;                        / Decrement x1 by 1
+        x6 = x6 - 1                         / Decrement x6 by 1
+    end;
+    x7 = x7 + 1;                            / Increment the counter x7 (the extracted digit)
+    
+    x5 = x1 + 0;                            / Update x5 with the new value of x1
+    x6 = x2 + 0;                            / Reset x6 to x2 for a new subtraction simulation
+    while x6 > 0 do                         / Simulate subtraction to check if x1 is still >= x2
+        x6 = x6 - 1;                        / Decrement x6 by 1
+        x5 = x5 - 1                         / Decrement x5 by 1
+    end
+end;
+
+
+/ Store the extracted ASCII code in x0
+x0 = x7 + 0                                 / Output: store the extracted ASCII code in x0

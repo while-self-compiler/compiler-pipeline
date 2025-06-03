@@ -1,0 +1,284 @@
+
+let currentTranslation, lebByteAmount, temp, tempTemp, tempTempTemp, highBit, shift, GENERATIONSIZE;
+
+macro encodeLeb { // LEB128 encoding (unsigned)
+    temp = currentTranslation;
+    currentTranslation = 0;
+    lebByteAmount = 0;
+    tempTempTemp = 0;
+
+    tempTemp = 128;
+    GENERATIONSIZE = 7;
+    highBit = 0; // reset highBit
+
+    while temp > 0 do
+        tempTempTemp = temp % tempTemp; // get lower 7 bits
+        temp = temp >> GENERATIONSIZE;
+
+        shift = 6;
+        highBit = tempTempTemp >> shift; // get MSB
+
+        if temp > 0 then
+            tempTempTemp = tempTempTemp + 128   // set MSB to 1 if more bytes to read
+        else
+            if highBit > 0 then
+                tempTempTemp = tempTempTemp + 128   // set MSB to 1 if more bytes to read
+            end
+        end;
+
+        GENERATIONSIZE = 8;
+        currentTranslation = currentTranslation << GENERATIONSIZE;
+        currentTranslation = currentTranslation + tempTempTemp; // add byte to translation
+
+        lebByteAmount = lebByteAmount + 1;
+
+        GENERATIONSIZE = 7;
+        tempTemp = 128
+    end;
+
+    if highBit > 0 then
+        GENERATIONSIZE = 8;
+        currentTranslation = currentTranslation << GENERATIONSIZE;
+        lebByteAmount = lebByteAmount + 1
+    end;
+
+    if lebByteAmount == 0 then
+        lebByteAmount = 1
+    end
+}
+macro generate { // lebencoding not directly in this macro because then there is a lot of unnecessary code for generation without LEB128
+    // adds a new 32 bit number to translation (each wasm instruction is 32 bits)
+    translation = translation << GENERATIONSIZE;
+    translation = translation + currentTranslation
+}
+let TOKENSIZE;
+
+macro getNextConstant {
+    TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+    currentConstant = constantPool % TOKENSIZE;
+    TOKENSIZE = 4;
+    constantPool = constantPool >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = currentConstant % TOKENSIZE;
+    TOKENSIZE = 1;
+    currentConstant = currentConstant >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        currentConstant = currentConstant << tempTemp;
+        tempTemp = constantPool % TOKENSIZE;
+        TOKENSIZE = 4;
+        constantPool = constantPool >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        currentConstant = currentConstant + tempTemp
+    end
+}
+
+let AMOUNTOFLOCALS;
+AMOUNTOFLOCALS = 3; // x0 + temp variable
+
+let highestI, constantPool, currentConstant, amountOfConstants, translation;
+
+// now add constants as index from x0 + temp variable (highestI) to highestI + temp variable + amountOfConstants
+let tempConstantPool, constantDefinitionTranslation, tempConstantTranslation, constantByteCount;
+constantPool = 2;
+
+let count;
+
+constantPool = 148537363679527300513953889549778393;
+
+/*
+while constantPool > 1 do
+    use getNextConstant;
+
+    // no special case for 0 needed because allocate already sets it to 0
+
+    // set value and add more if constant chain (constant > 32 bits)
+    while currentConstant > 0 do
+        let chunk, bitsAmount, bitsAmountPower;
+        bitsAmountPower = 4294967296; // 2^32
+        bitsAmount = 32;
+
+        // get lower 32 bits of constant
+        chunk = currentConstant % bitsAmountPower;
+        currentConstant = currentConstant >> bitsAmount;
+
+        currentTranslation = chunk; // this is always < 2^32
+        use encodeLeb;
+        GENERATIONSIZE = lebByteAmount * 8;
+        use generate;
+
+        if currentConstant > 0 then
+            count = count + 1;
+            currentTranslation = 69; GENERATIONSIZE = 8; use generate
+        end
+    end;
+
+    AMOUNTOFLOCALS = AMOUNTOFLOCALS + 1
+end;*/
+
+let CALL, ALLOCATE, LOCALSET, LOCALGET, ICONST, SETVALUE, SETNEXT, TEMPVARIABLEPOINTERONE, TEMPVARIABLEPOINTERTWO;
+
+
+while constantPool > 1 do
+    use getNextConstant;
+
+    // prepare already translation which gets inserted after the local declaration
+    // idea: call allocate and set to constant index
+    let bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = CALL;
+    currentTranslation = currentTranslation << bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = currentTranslation + ALLOCATE;
+    currentTranslation = currentTranslation << bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = currentTranslation + LOCALSET;
+    GENERATIONSIZE = 24;
+    use generate;
+
+    constantByteCount = constantByteCount + 3;
+
+    currentTranslation = TEMPVARIABLEPOINTERONE; // $currentNode
+    use encodeLeb;
+    GENERATIONSIZE = lebByteAmount * 8;
+    use generate;
+    constantByteCount = constantByteCount + lebByteAmount;
+
+    currentTranslation = LOCALGET;
+    GENERATIONSIZE = 8;
+    use generate;
+    constantByteCount = constantByteCount + 1;
+
+    currentTranslation = TEMPVARIABLEPOINTERONE; // $currentNode
+    use encodeLeb;
+    GENERATIONSIZE = lebByteAmount * 8;
+    use generate;
+    constantByteCount = constantByteCount + lebByteAmount;
+
+    currentTranslation = LOCALSET;
+    GENERATIONSIZE = 8;
+    use generate;
+    constantByteCount = constantByteCount + 1;
+
+    currentTranslation = AMOUNTOFLOCALS + highestI;
+    use encodeLeb;
+    GENERATIONSIZE = lebByteAmount * 8;
+    use generate;
+    constantByteCount = constantByteCount + lebByteAmount;
+
+    // no special case for 0 needed because allocate already sets it to 0
+
+    // set value and add more if constant chain (constant > 32 bits)
+    while currentConstant > 0 do
+        let chunk, bitsAmount, bitsAmountPower;
+        bitsAmountPower = 4294967296; // 2^32
+        bitsAmount = 32;
+
+        // get lower 32 bits of constant
+        chunk = currentConstant % bitsAmountPower;
+        currentConstant = currentConstant >> bitsAmount;
+
+        currentTranslation = LOCALGET;
+        GENERATIONSIZE = 8;
+        use generate;
+        constantByteCount = constantByteCount + 1;
+
+        currentTranslation = TEMPVARIABLEPOINTERONE; // $currentNode
+        use encodeLeb;
+        GENERATIONSIZE = lebByteAmount * 8;
+        use generate;
+        constantByteCount = constantByteCount + lebByteAmount;
+
+        currentTranslation = ICONST;
+        GENERATIONSIZE = 8;
+        use generate;
+        constantByteCount = constantByteCount + 1;
+
+        currentTranslation = chunk; // this is always < 2^32
+        use encodeLeb;
+        GENERATIONSIZE = lebByteAmount * 8;
+        use generate;
+        constantByteCount = constantByteCount + lebByteAmount;
+
+        currentTranslation = CALL;
+        GENERATIONSIZE = 8;
+        use generate;
+
+        currentTranslation = SETVALUE;
+        GENERATIONSIZE = 8;
+        use generate;
+
+        constantByteCount = constantByteCount + 2;
+
+        if currentConstant > 0 then
+            // allocate nextNode
+            currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+            currentTranslation = ALLOCATE; GENERATIONSIZE = 8; use generate;
+            currentTranslation = LOCALSET; GENERATIONSIZE = 8; use generate;
+            constantByteCount = constantByteCount + 3;
+
+            currentTranslation = TEMPVARIABLEPOINTERTWO; // $nextNode
+            use encodeLeb;
+            GENERATIONSIZE = lebByteAmount * 8;
+            use generate;
+            constantByteCount = constantByteCount + lebByteAmount;
+
+            // set_next
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate; constantByteCount = constantByteCount + 1;
+
+            currentTranslation = TEMPVARIABLEPOINTERONE; // $currentNode
+            use encodeLeb;
+            GENERATIONSIZE = lebByteAmount * 8;
+            use generate;
+            constantByteCount = constantByteCount + lebByteAmount;
+
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate; constantByteCount = constantByteCount + 1;
+
+            currentTranslation = TEMPVARIABLEPOINTERTWO; // $nextNode
+            use encodeLeb;
+            GENERATIONSIZE = lebByteAmount * 8;
+            use generate;
+            constantByteCount = constantByteCount + lebByteAmount;
+
+            currentTranslation = CALL;
+            GENERATIONSIZE = 8;
+            use generate;
+
+            currentTranslation = SETNEXT;
+            GENERATIONSIZE = 8;
+            use generate;
+
+            constantByteCount = constantByteCount + 2;
+
+            // currentNode = nextNode
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate; constantByteCount = constantByteCount + 1;
+
+            currentTranslation = TEMPVARIABLEPOINTERTWO; // $nextNode
+            use encodeLeb;
+            GENERATIONSIZE = lebByteAmount * 8;
+            use generate;
+            constantByteCount = constantByteCount + lebByteAmount;
+
+            currentTranslation = LOCALSET; GENERATIONSIZE = 8; use generate; constantByteCount = constantByteCount + 1;
+
+            currentTranslation = TEMPVARIABLEPOINTERONE; // $currentNode
+            use encodeLeb;
+            GENERATIONSIZE = lebByteAmount * 8;
+            use generate;
+            constantByteCount = constantByteCount + lebByteAmount
+        end
+    end;
+
+    AMOUNTOFLOCALS = AMOUNTOFLOCALS + 1
+end;
+
+x0 = translation
+
+// E6 CE D0 CA 01    45    B6 B7 D7 F5 07    45    9A BA B6 02

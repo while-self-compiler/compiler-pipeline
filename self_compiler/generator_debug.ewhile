@@ -1,0 +1,1700 @@
+// INIT GLOBAL VARS
+let tokenStream, integerStream, amountOfTokens, constantPool, tokenOffset, integerOffset, constantOffset, highestI;
+
+// INIT MACROS
+
+let word, wordLen, shift;
+
+macro getWord {
+    shift = x2 - wordLen;
+    shift = shift * 8;
+    word = x1 >> shift
+}
+
+macro delWord {
+    shift = x2 - wordLen;
+    shift = shift * 8;
+    word = word << shift;
+    x2 = x2 - wordLen;
+    x1 = x1 - word
+}
+
+let foundWhitespace;
+
+macro jumpWhitespace {
+    wordLen = 1;
+    foundWhitespace = 1;
+    while foundWhitespace > 0 do
+        foundWhitespace = 0;
+        shift = x2 - wordLen;
+        shift = shift * 8;
+        word = x1 >> shift;
+        if word == wordSpace then
+            foundWhitespace = 1
+        end;
+        if word == wordNewline then
+            foundWhitespace = 1
+        end;
+        if word == wordTab then
+            foundWhitespace = 1
+        end;
+        if foundWhitespace > 0 then
+            shift = x2 - wordLen;
+            shift = shift * 8;
+            word = word << shift;
+            x2 = x2 - wordLen;
+            x1 = x1 - word
+        end
+    end
+}
+
+let num, digit, foundNum, mult;
+
+macro parseNumber {
+    wordLen = 1;
+    foundNum = 1;
+    num = 0;
+    mult = 10;
+    while foundNum > 0 do
+        foundNum = 0;
+        shift = x2 - wordLen;
+        shift = shift * 8;
+        word = x1 >> shift;
+        if word > 47 then
+            if 58 > word then
+                foundNum = 1;
+                digit = word - 48
+            end
+        end;
+        if foundNum > 0 then
+            num = num * mult;
+            num = num + digit;
+            shift = x2 - wordLen;
+            shift = shift * 8;
+            word = word << shift;
+            x2 = x2 - wordLen;
+            x1 = x1 - word
+        end
+    end
+}
+
+let tempNum, isFirst, threeBitNum, modulo, numTokens, numLeng;
+
+macro numOut {
+    isFirst = 0;
+    tempNum = num;
+    numTokens = 0;
+    numLeng = 0;
+    if tempNum == 0 then
+        // Special case for 0
+        threeBitNum = 0;
+        shift = 1;
+        threeBitNum = threeBitNum << shift;
+        threeBitNum = threeBitNum + isFirst;
+        shift = 4;
+        numTokens = numTokens << shift;
+        numTokens = numTokens + threeBitNum;
+        numLeng = numLeng + 4
+    else
+        while tempNum > 0 do
+            modulo = 8;
+            threeBitNum = tempNum % modulo;
+            shift = 3;
+            tempNum = tempNum >> shift;
+            shift = 1;
+            threeBitNum = threeBitNum << shift;
+            threeBitNum = threeBitNum + isFirst;
+            if isFirst == 0 then
+                isFirst = 1
+            end;
+            shift = 4;
+            numTokens = numTokens << shift;
+            numTokens = numTokens + threeBitNum;
+            numLeng = numLeng + 4
+        end
+    end;
+    shift = integerOffset;
+    numTokens = numTokens << shift;
+    integerStream = integerStream + numTokens;
+    integerOffset = integerOffset + numLeng
+}
+
+let isTooBig, knownConst, numKnownConst, isKnown, knownConstTemp, numKnownConstTemp, knownConsts;
+
+macro constOut {
+    isFirst = 0;
+    shift = 32;
+    tempNum = num >> shift;
+    isTooBig = 0;
+    numTokens = 0;
+    numLeng = 0;
+    if tempNum > 0 then
+        isTooBig = 1
+    end;
+    tempNum = num;
+    isKnown = 0;
+    if isTooBig == 0 then
+        // Check if in knownConsts and set isKnown
+        knownConstTemp = knownConsts;
+        numKnownConstTemp = numKnownConst * 32;
+        while knownConstTemp > 0 do
+            numKnownConstTemp = numKnownConstTemp - 32;
+            shift = numKnownConstTemp;
+            knownConst = knownConstTemp >> shift;
+            if knownConst == tempNum then
+                isKnown = 1
+            end;
+            shift = numKnownConstTemp;
+            knownConst = knownConst << shift;
+            knownConstTemp = knownConstTemp - knownConst
+        end;
+
+        if isKnown == 0 then
+            shift = 32;
+            knownConsts = knownConsts << shift;
+            knownConsts = knownConsts + tempNum;
+            numKnownConst = numKnownConst + 1
+        end
+    end;
+
+    if isKnown == 0 then
+        isFirst = 0;
+        tempNum = num;
+        if tempNum == 0 then
+            // Special case for 0
+            threeBitNum = 0;
+            shift = 1;
+            threeBitNum = threeBitNum << shift;
+            threeBitNum = threeBitNum + isFirst;
+            shift = 4;
+            numTokens = numTokens << shift;
+            numTokens = numTokens + threeBitNum;
+            numLeng = numLeng + 4
+        else
+            while tempNum > 0 do
+                modulo = 8;
+                threeBitNum = tempNum % modulo;
+                shift = 3;
+                tempNum = tempNum >> shift;
+                shift = 1;
+                threeBitNum = threeBitNum << shift;
+                threeBitNum = threeBitNum + isFirst;
+                if isFirst == 0 then
+                    isFirst = 1
+                end;
+                shift = 4;
+                numTokens = numTokens << shift;
+                numTokens = numTokens + threeBitNum;
+                numLeng = numLeng + 4
+            end
+        end;
+        shift = constantOffset;
+        numTokens = numTokens << shift;
+        constantPool = constantPool + numTokens;
+        constantOffset = constantOffset + numLeng
+    end
+
+}
+
+let token;
+
+macro pushToken {
+    shift = tokenOffset;
+    token = token << shift;
+    tokenStream = tokenStream + token;
+    tokenOffset = tokenOffset + 2;
+    amountOfTokens = amountOfTokens + 1
+}
+
+macro updateHighestI {
+    tempNum = num;
+    if tempNum > highestI then
+        highestI = tempNum
+    end
+}
+
+macro getNextToken {
+    TOKENSIZE = 4; // 4 Tokenclasses = 2^2 = 4
+    amountOfTokens = amountOfTokens - 1;
+    currentToken = tokenStream % TOKENSIZE;
+
+    TOKENSIZE = 2;
+    tokenStream = tokenStream >> TOKENSIZE
+}
+
+macro getNextNumber {
+    TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+    currentNumber = integerStream % TOKENSIZE;
+    TOKENSIZE = 4;
+    integerStream = integerStream >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = currentNumber % TOKENSIZE;
+    TOKENSIZE = 1;
+    currentNumber = currentNumber >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        currentNumber = currentNumber << tempTemp;
+        tempTemp = integerStream % TOKENSIZE;
+        TOKENSIZE = 4;
+        integerStream = integerStream >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        currentNumber = currentNumber + tempTemp
+    end
+}
+
+macro encodeLeb {
+    temp = currentTranslation;
+    currentTranslation = 0;
+    lebByteAmount = 0;
+    tempTempTemp = 0;
+
+    tempTemp = 128;
+    GENERATIONSIZE = 7;
+
+    while temp != 0 do
+        tempTempTemp = temp % tempTemp; // get lower 7 bits
+        temp = temp >> GENERATIONSIZE;
+
+        if temp != 0 then
+            tempTempTemp = tempTempTemp + 128   // set MSB to 1 if more bytes to read
+        end;
+
+        GENERATIONSIZE = 8;
+        currentTranslation = currentTranslation << GENERATIONSIZE;
+        currentTranslation = currentTranslation + tempTempTemp; // add byte to translation
+
+        lebByteAmount = lebByteAmount + 1;
+
+        GENERATIONSIZE = 7;
+        tempTemp = 128
+    end;
+
+    if lebByteAmount == 0 then
+        lebByteAmount = 1
+    end
+}
+
+macro generate { // lebencoding not directly in this macro because then there is a lot of unnecessary code for generation without LEB128
+    // adds a new 32 bit number to translation (each wasm instruction is 32 bits)
+    translation = translation << GENERATIONSIZE;
+    translation = translation + currentTranslation
+}
+// TODO: Stack functions can be replaced with a real stack implementation (for example for other control structures, error handling or semi check)
+
+macro push {
+    // pushes a open paranthesis to the stack
+    // this is done similar to a count semaphore (increasing when opening and decreasing when closing)
+    stack = stack + 1
+}
+
+macro pop {
+    // pops a close paranthesis from the stack
+    // this is done similar to a count semaphore (increasing when opening and decreasing when closing)
+    stack = stack - 1
+}
+
+macro getNextConstant {
+    TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+    currentConstant = constantPool % TOKENSIZE;
+    TOKENSIZE = 4;
+    constantPool = constantPool >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = currentConstant % TOKENSIZE;
+    TOKENSIZE = 1;
+    currentConstant = currentConstant >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        currentConstant = currentConstant << tempTemp;
+        tempTemp = constantPool % TOKENSIZE;
+        TOKENSIZE = 4;
+        constantPool = constantPool >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        currentConstant = currentConstant + tempTemp
+    end
+}
+
+macro findConstant {
+    // finds the constant pool index of the current constant
+    let found, tempConstantPoolFinder;
+    found = 0;
+    tempConstantPoolFinder = constantPool;
+
+    // find constant index
+    while found == 0 do
+        // get next constant
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        currentConstant = tempConstantPoolFinder % TOKENSIZE;
+        TOKENSIZE = 4;
+        tempConstantPoolFinder = tempConstantPoolFinder >> TOKENSIZE;
+
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = currentConstant % TOKENSIZE;
+        TOKENSIZE = 1;
+        currentConstant = currentConstant >> TOKENSIZE;
+
+        while temp != 0 do
+            // there are more bits to read
+            TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+            tempTemp = 3;
+            currentConstant = currentConstant << tempTemp;
+            tempTemp = tempConstantPoolFinder % TOKENSIZE;
+            TOKENSIZE = 4;
+            tempConstantPoolFinder = tempConstantPoolFinder >> TOKENSIZE;
+            TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+            temp = tempTemp % TOKENSIZE;
+            TOKENSIZE = 1;
+            tempTemp = tempTemp >> TOKENSIZE;
+            currentConstant = currentConstant + tempTemp
+        end;
+
+        if currentConstant == findConstant then
+            found = 1
+        else
+            i = i + 1
+        end
+    end
+}
+
+macro twoVarOptimisation {
+/*
+This is a two variable code optimiser.
+
+It replaces the following code:
+while x1 > 0 do
+x2 = x2 op 1;
+x1 = x1 - 1
+end
+
+or
+
+while x1 > 0 do
+x1 = x1 - 1;
+x2 = x2 op 1
+end
+
+with op = + or -
+
+with the following code:
+x2 = x2 + x1;
+x1 = x1 - x1; (x1 = 0)
+*/
+
+    optimise = 0; // default false
+
+    let xOne, xOneOne, xTwo, xTwoTwo, cOne, cTwo, match, tempTwoVarIntegerStream, twoVarTokenStream, lookaheadNumber, plus;
+    let inductionVariable, assignmentVariable;
+    tempTwoVarIntegerStream = integerStream;
+    twoVarTokenStream = tokenStream;
+    TOKENSIZE = 64; // 3 token lookahead (2^6)
+    lookaheadNumber = twoVarTokenStream % TOKENSIZE;
+    TOKENSIZE = 6;
+    twoVarTokenStream = twoVarTokenStream >> TOKENSIZE;
+    plus = 0; // 0 = -, 1 = +
+
+    // x1 fetch
+    TOKENSIZE = 16;
+    xOne = tempTwoVarIntegerStream % TOKENSIZE;
+    TOKENSIZE = 4;
+    tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = xOne % TOKENSIZE;
+    TOKENSIZE = 1;
+    xOne = xOne >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        xOne = xOne << tempTemp;
+        tempTemp = tempTwoVarIntegerStream % TOKENSIZE;
+        TOKENSIZE = 4;
+        tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        xOne = xOne + tempTemp
+    end;
+
+    // x1' fetch
+    TOKENSIZE = 16;
+    xOneOne = tempTwoVarIntegerStream % TOKENSIZE;
+    TOKENSIZE = 4;
+    tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = xOneOne % TOKENSIZE;
+    TOKENSIZE = 1;
+    xOneOne = xOneOne >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        xOneOne = xOneOne << tempTemp;
+        tempTemp = tempTwoVarIntegerStream % TOKENSIZE;
+        TOKENSIZE = 4;
+        tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        xOneOne = xOneOne + tempTemp
+    end;
+
+    // c1 fetch
+    TOKENSIZE = 16;
+    cOne = tempTwoVarIntegerStream % TOKENSIZE;
+    TOKENSIZE = 4;
+    tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = cOne % TOKENSIZE;
+    TOKENSIZE = 1;
+    cOne = cOne >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        cOne = cOne << tempTemp;
+        tempTemp = tempTwoVarIntegerStream % TOKENSIZE;
+        TOKENSIZE = 4;
+        tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        cOne = cOne + tempTemp
+    end;
+
+    // x2 fetch
+    TOKENSIZE = 16;
+    xTwo = tempTwoVarIntegerStream % TOKENSIZE;
+    TOKENSIZE = 4;
+    tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = xTwo % TOKENSIZE;
+    TOKENSIZE = 1;
+    xTwo = xTwo >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        xTwo = xTwo << tempTemp;
+        tempTemp = tempTwoVarIntegerStream % TOKENSIZE;
+        TOKENSIZE = 4;
+        tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        xTwo = xTwo + tempTemp
+    end;
+
+    // x2' fetch
+    TOKENSIZE = 16;
+    xTwoTwo = tempTwoVarIntegerStream % TOKENSIZE;
+    TOKENSIZE = 4;
+    tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = xTwoTwo % TOKENSIZE;
+    TOKENSIZE = 1;
+    xTwoTwo = xTwoTwo >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        xTwoTwo = xTwoTwo << tempTemp;
+        tempTemp = tempTwoVarIntegerStream % TOKENSIZE;
+        TOKENSIZE = 4;
+        tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        xTwoTwo = xTwoTwo + tempTemp
+    end;
+
+    // c2 fetch
+    TOKENSIZE = 16;
+    cTwo = tempTwoVarIntegerStream % TOKENSIZE;
+    TOKENSIZE = 4;
+    tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = cTwo % TOKENSIZE;
+    TOKENSIZE = 1;
+    cTwo = cTwo >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        cTwo = cTwo << tempTemp;
+        tempTemp = tempTwoVarIntegerStream % TOKENSIZE;
+        TOKENSIZE = 4;
+        tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        cTwo = cTwo + tempTemp
+    end;
+
+    // (end op2 op1) = (01 10 11) (end + -), (01 11 10) (end - +), (01 11 11) (end - -)
+
+    // check if x1 == x1' and x2 == x2'
+    if xOne == xOneOne then
+        if xTwo == xTwoTwo then
+            // check if c1 == c2 == 1
+            if cOne == 1 then
+                if cTwo == 1 then
+                    match = 27; // (01 10 11)
+                    if match == lookaheadNumber then
+                        if condition == xOne then // if x1 is induction variable
+                            optimise = 1;
+                            plus = 1;
+
+                            // already remove from both streams
+                            integerStream = tempTwoVarIntegerStream;
+                            tokenStream = twoVarTokenStream;
+                            amountOfTokens = amountOfTokens - 3;
+                            inductionVariable = xOne;
+                            assignmentVariable = xTwo
+                        end
+                    else
+                        match = 30; // (01 11 10)
+                        if match == lookaheadNumber then
+                            if condition == xTwo then // if x2 is induction variable
+                                optimise = 1;
+                                plus = 1;
+
+                                // already remove from both streams
+                                integerStream = tempTwoVarIntegerStream;
+                                tokenStream = twoVarTokenStream;
+                                amountOfTokens = amountOfTokens - 3;
+                                inductionVariable = xTwo;
+                                assignmentVariable = xOne
+                            end
+                        else
+                            match = 31; // (01 11 11)
+                            if match == lookaheadNumber then
+                                // no induction variable check needed
+                                optimise = 1;
+
+                                // already remove from both streams
+                                integerStream = tempTwoVarIntegerStream;
+                                tokenStream = twoVarTokenStream;
+                                amountOfTokens = amountOfTokens - 3;
+                                inductionVariable = xOne;
+                                assignmentVariable = xTwo
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    // print = integerStream // for testing
+}
+
+
+
+
+/*
+amountOfTokens = 1;
+constantPool = 38183624546408548638417364007413;
+integerStream = 9775007883880588451434845185897728;
+tokenStream = 12;
+*/
+amountOfTokens = 5;
+constantPool = 288;
+integerStream = 1125323908712;
+tokenStream = 632;
+highestI = 4;
+
+
+
+
+
+
+
+
+// CONSTANTS
+let TOKENSIZE, GENERATIONSIZE;
+let WHILETOKEN, ENDTOKEN, PLUSTOKEN, MINUSTOKEN;
+WHILETOKEN = 0; // 00
+ENDTOKEN = 1; // 01
+PLUSTOKEN = 2; // 10
+MINUSTOKEN = 3; // 11
+
+
+// GLOBALS
+let currentToken, tempTempTemp, currentConstant, currentNumber, temp, tempTemp, translation, error, stack, currentTranslation, tempHighestI, amountOfBytes;
+currentToken = 0;
+translation = 0;
+currentTranslation = 0;
+error = 0;
+currentNumber = 0;
+currentConstant = 0;
+temp = 0;
+tempTemp = 0;
+stack = 0;
+amountOfBytes = 0;
+tempHighestI = highestI;
+
+
+// ERROR CODES
+let UNRECOGNISEDTOKEN, NOMOREINTEGERS, NOMOREWHILE, NOMOREEND, UNREACHABLE, TOMANYINTEGERS;
+UNRECOGNISEDTOKEN = 1;
+NOMOREINTEGERS = 2;
+NOMOREWHILE = 3;
+NOMOREEND = 4;
+UNREACHABLE = 5;
+TOMANYINTEGERS = 6;
+
+
+// WASM TRANSLATIONS
+/*
+1. Import instruction calculation: (order matters!)
+(import "env" "allocate" (func $allocate (result i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x08 0x61 0x6C 0x6C 0x6F 0x63 0x61 0x74 0x65 ("allocate") 0x00 0x00
+(import "env" "create_chunk" (func $create_chunk (param i32) (result i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x0C 0x63 0x72 0x65 0x61 0x74 0x65 0x5F 0x63 0x68 0x75 0x6E 0x6B ("create_chunk") 0x00 0x01
+(import "env" "copy" (func $copy (param i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x04 0x63 0x6F 0x70 0x79 ("copy") 0x00 0x02
+(import "env" "add" (func $add (param i32 i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x03 0x61 0x64 0x64 ("add") 0x00 0x03
+(import "env" "sub" (func $sub (param i32 i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x03 0x73 0x75 0x62 ("sub") 0x00 0x03
+(import "env" "mul" (func $mul (param i32 i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x03 0x6D 0x75 0x6C ("mul") 0x00 0x03
+(import "env" "div" (func $div (param i32 i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x03 0x64 0x69 0x76 ("div") 0x00 0x03
+(import "env" "right_shift" (func $right_shift (param i32 i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x0B 0x72 0x69 0x67 0x68 0x74 0x5F 0x73 0x68 0x69 0x66 0x74 ("right_shift") 0x00 0x03
+(import "env" "left_shift" (func $left_shift (param i32 i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x0A 0x6C 0x65 0x66 0x74 0x5F 0x73 0x68 0x69 0x66 0x74 ("left_shift") 0x00 0x03
+(import "env" "mod" (func $mod (param i32 i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x03 0x6D 0x6F 0x64 ("mod") 0x00 0x03
+(import "env" "set_to_zero" (func $set_to_zero (param i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x0B 0x73 0x65 0x74 0x5F 0x74 0x6F 0x5F 0x7A 0x65 0x72 0x6F ("set_to_zero") 0x00 0x04
+(import "env" "is_gt" (func $is_gt (param i32 i32) (result i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x05 0x69 0x73 0x5F 0x67 0x74 ("is_gt") 0x00 0x05
+(import "env" "set_value" (func $set_value (param i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x09 0x73 0x65 0x74 0x5F 0x76 0x61 0x6C 0x75 0x65 ("set_value") 0x00 0x02
+(import "env" "set_next" (func $set_next (param i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x08 0x73 0x65 0x74 0x5F 0x6E 0x65 0x78 0x74 ("set_next") 0x00 0x02
+(import "env" "get_value" (func $get_value (param i32) (result i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x09 0x67 0x65 0x74 0x5F 0x76 0x61 0x6C 0x75 0x65 ("get_value") 0x00 0x01
+(import "env" "get_next" (func $get_next (param i32) (result i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x08 0x67 0x65 0x74 0x5F 0x6E 0x65 0x78 0x74 ("get_next") 0x00 0x01
+
+- everything together:
+0x03656E7608616C6C6F636174650000 03656E760C6372656174655F6368756E6B0001 03656E7604636F70790002 03656E76036164640003 03656E76037375620003 03656E76036D756C0003 03656E76036469760003 03656E760B72696768745F73686966740003 03656E760A6C6566745F73686966740003 03656E76036D6F640003 03656E760B7365745F746F5F7A65726F0004 03656E760569735F67740005 03656E76097365745F76616C75650002 03656E76087365745F6E6578740002 03656E76096765745F76616C75650001 03656E76086765745F6E6578740001
+without WS: 0x03656E7608616C6C6F63617465000003656E760C6372656174655F6368756E6B000103656E7604636F7079000203656E7603616464000303656E7603737562000303656E76036D756C000303656E7603646976000303656E760B72696768745F7368696674000303656E760A6C6566745F7368696674000303656E76036D6F64000303656E760B7365745F746F5F7A65726F000403656E760569735F6774000503656E76097365745F76616C7565000203656E76087365745F6E657874000203656E76096765745F76616C7565000103656E76086765745F6E6578740001
+
+- function types:
+(func (result i32)) => 0x60 0x00 0x01 0x7F
+(func (param i32) (result i32)) => 0x60 0x01 0x7F 0x01 0x7F (possible main function)
+(func (param i32 i32)) => 0x60 0x02 0x7F 0x7F 0x00
+(func (param i32 i32 i32)) => 0x60 0x03 0x7F 0x7F 0x7F 0x00
+(func (param i32 i32 i32)) => 0x60 0x03 0x7F 0x7F 0x7F 0x00 (exists)
+(func (param i32 i32 i32)) => 0x60 0x03 0x7F 0x7F 0x7F 0x00 (exists)
+(func (param i32 i32 i32)) => 0x60 0x03 0x7F 0x7F 0x7F 0x00 (exists)
+(func (param i32 i32 i32)) => 0x60 0x03 0x7F 0x7F 0x7F 0x00 (exists)
+(func (param i32 i32 i32)) => 0x60 0x03 0x7F 0x7F 0x7F 0x00 (exists)
+(func (param i32 i32 i32)) => 0x60 0x03 0x7F 0x7F 0x7F 0x00 (exists)
+(func (param i32)) => 0x60 0x01 0x7F 0x00
+(func (param i32 i32) (result i32)) => 0x60 0x02 0x7F 0x7F 0x01 0x7F (possible main function)
+(func (param i32 i32)) => 0x60 0x02 0x7F 0x7F 0x00 (exists)
+(func (param i32 i32)) => 0x60 0x02 0x7F 0x7F 0x00 (exists)
+(func (param i32) (result i32)) => 0x60 0x01 0x7F 0x01 0x7F (exists)
+(func (param i32) (result i32)) => 0x60 0x01 0x7F 0x01 0x7F (exists)
+
+- everything together:
+0x6000017F 60017F017F 60027F7F00 60037F7F7F00 60017F00 60027F7F017F
+without WS: 0x6000017F60017F017F60027F7F0060037F7F7F0060017F0060027F7F017F
+*/
+
+let print;
+let lebByteAmount, currentTranslationTemp;
+let currentTranslationOne, TEMPVARIABLEPOINTERONE, TEMPVARIABLEPOINTERTWO, currentTranslationTwo, currentTranslationThree, generationSizeOne, generationSizeTwo, generationSizeThree;
+lebByteAmount = 0; // gets set by encodeLeb macro
+TEMPVARIABLEPOINTERONE = highestI + 1; // one after x0
+TEMPVARIABLEPOINTERTWO = highestI + 2; // one after x0 + temp variable (x0 is always the first local variable)
+let i, findConstant;
+// TRANSLATION HEADER
+let ITYPE;
+ITYPE = 127; // 0x7F (i32)
+
+
+// ******** MAGIC NUMBER ********
+// module ::= magic
+let MAGICNUMBER;
+MAGICNUMBER = 6386541; // 0x00 0x61 0x73 0x6D
+
+currentTranslation = MAGICNUMBER;
+GENERATIONSIZE = 24;
+use generate;
+
+
+// ******** VERSION ********
+// module ::= version
+let VERSION;
+VERSION = 16777216; // 0x01 0x00 0x00 0x00
+
+currentTranslation = VERSION;
+GENERATIONSIZE = 32;
+use generate;
+
+
+// ******** TYPE SECTION ********
+// module ::= type
+/*
+Structure:
+- section id: 0x01
+- section size: 0xXX (calculated from the amount of bytes in the section without section id and size (LEB128 encoding))
+- amount of types: 0xXX (LEB128 encoding)
+- content: (every element is a functype (no other types needed))
+- functype: 0x60
+- amount of parameters: 0xXX (LEB128 encoding)
+- parameters: 0x7F (i32)
+- amount of results: 0xXX (LEB128 encoding)
+- results: 0x7F (i32)
+*/
+
+let TYPESECTIONID, FUNCTIONTYPEID, ALLFUNCTYPES, AMOUNTOFIMPORTFUNCTION, MAINRESTYPE;
+TYPESECTIONID = 1; // 0x01
+FUNCTIONTYPEID = 96; // 0x60
+ALLFUNCTYPES = 662567807003230930624190222691289759919585936578558016344727839582388607; // each precalculated import function as a type (main functions gets added dynamically)
+AMOUNTOFIMPORTFUNCTION = 6;
+MAINRESTYPE = 383; // 0x01 (amount of result => here always 1 for x0) 0x7F (i32) (already converted to LEB128 encoding)
+
+let typeTemp;
+currentTranslationTemp = translation;
+translation = 0;
+
+// check if main function signature matches with an import function signature¨
+/*
+if highestI != 1 then
+if highestI != 2 then
+// if more import functypes are needed this may be extended
+AMOUNTOFIMPORTFUNCTION = AMOUNTOFIMPORTFUNCTION + 1 // +1 for main function
+end
+end;
+*/
+// attention: the above isn't needed because in WASM there can also be identical functypes so we don't need to check for duplicates
+AMOUNTOFIMPORTFUNCTION = AMOUNTOFIMPORTFUNCTION + 1; // +1 for main function => always after the import functypes
+
+currentTranslation = AMOUNTOFIMPORTFUNCTION;
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * 8;
+use generate;
+
+// all import types
+currentTranslation = ALLFUNCTYPES;
+GENERATIONSIZE = 240; // 30 * 8 = 240
+use generate;
+
+amountOfBytes = 30;
+
+// add main dynamically
+// amount of parameters
+currentTranslation = FUNCTIONTYPEID;
+GENERATIONSIZE = 8;
+use generate;
+currentTranslation = highestI;
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * 8;
+use generate;
+
+// functype parameters and result
+while tempHighestI > 0 do
+    currentTranslation = ITYPE;
+    GENERATIONSIZE = 8;
+    use generate;
+
+    tempHighestI = tempHighestI - 1
+end;
+// restype
+currentTranslation = MAINRESTYPE;
+GENERATIONSIZE = 16;
+use generate;
+amountOfBytes = amountOfBytes + highestI;
+amountOfBytes = amountOfBytes + 5; // 5 = 2 prefix bytes + 2 result bytes + itself
+
+typeTemp = translation;
+
+// section size
+translation = currentTranslationTemp;
+
+// add type section to translation
+currentTranslation = TYPESECTIONID;
+GENERATIONSIZE = 8;
+use generate;
+
+// section size
+currentTranslation = amountOfBytes;
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * 8;
+use generate;
+
+// add type section to translation
+currentTranslation = typeTemp;
+GENERATIONSIZE = amountOfBytes * 8;
+use generate;
+
+
+// ******** IMPORT SECTION ********
+// TODO: As an optimisation: This can be fully precalculated
+// module ::= import
+let IMPORTSECTIONID, STATICIMPORTBODY, STATICIMPORTBODYSIZE, STATICIMPORTBODYPOST, STATICAMOUNTOFIMPORTS;
+IMPORTSECTIONID = 2; // 0x02
+STATICIMPORTBODYSIZE = 222; // ordered imports size: 15 + 19 + 11 + 10 + 10 + 10 + 10 + 18 + 17 + 10 + 18 + 12 + 16 + 15 + 16 + 15 = 222
+STATICIMPORTBODY = 56497305246512527679871829107537272267820064118993336773872698479773525049703679853313040231898858105611114532016826655867891066060842342976087117232780816911609855318093097278189880796495341543934083204499472150900650271946937109459982728286870772602843763779180362183728135234407868147888157323774216141676890599274100881973197716818132947672362783252945344474417108249197712164198148806490054055556711454206153388088888707044987714281263545181675371427500422181353564168018231441335387472841294650319383793825365472474666871554049;
+STATICAMOUNTOFIMPORTS = 16; // 0x10 (if more imports are needed this may be extended to LEB128 encoding)
+
+currentTranslation = IMPORTSECTIONID;
+GENERATIONSIZE = 8;
+use generate;
+
+currentTranslation = STATICIMPORTBODYSIZE + 1; // + 1 because of size of STATICAMOUNTOFIMPORTS (this should be changed if the size of the imports changes)
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * 8;
+use generate;
+
+currentTranslation = STATICAMOUNTOFIMPORTS;
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * 8;
+use generate;
+
+currentTranslation = STATICIMPORTBODY;
+GENERATIONSIZE = STATICIMPORTBODYSIZE * 8;
+use generate;
+
+
+// ******** FUNCTION SECTION ********
+// module ::= function
+let FUNCTIONSECTIONID, FUNCTIONSECTIONSIZE, AMOUNTOFFUNCTIONS, FUNCTIONSIGNATUREPOINTER;
+FUNCTIONSECTIONID = 3; // 0x03
+FUNCTIONSECTIONSIZE = 0;
+AMOUNTOFFUNCTIONS = 1; // 0x01 (only main function required for WHILE)
+FUNCTIONSIGNATUREPOINTER = AMOUNTOFIMPORTFUNCTION - 1; // always the last function of teh type section (TODO: Rename AMOUNTOFIMPORTFUNCTION to something else more type section related)
+
+currentTranslation = FUNCTIONSECTIONID;
+GENERATIONSIZE = 8;
+use generate;
+
+currentTranslationTwo = AMOUNTOFFUNCTIONS;
+use encodeLeb;
+generationSizeTwo = lebByteAmount * 8;
+FUNCTIONSECTIONSIZE = FUNCTIONSECTIONSIZE + lebByteAmount;
+
+currentTranslationThree = FUNCTIONSIGNATUREPOINTER;
+use encodeLeb;
+generationSizeThree = lebByteAmount * 8;
+FUNCTIONSECTIONSIZE = FUNCTIONSECTIONSIZE + lebByteAmount;
+
+currentTranslationOne = FUNCTIONSECTIONSIZE;
+use encodeLeb;
+generationSizeOne = lebByteAmount * 8;
+
+currentTranslation = currentTranslationOne;
+GENERATIONSIZE = generationSizeOne;
+use generate;
+
+currentTranslation = currentTranslationTwo;
+GENERATIONSIZE = generationSizeTwo;
+use generate;
+
+currentTranslation = currentTranslationThree;
+GENERATIONSIZE = generationSizeThree;
+use generate;
+
+
+// ******** EXPORT SECTION ********
+// module ::= export
+/*
+Structure:
+- section id: 0x07
+- section size: 0x08
+- amount of exports: 0x01
+- name length: 0x04 (4 bytes for "main")
+- name: 0x6D 0x61 0x69 0x6E ("main")
+- export kind: 0x00 (function)
+- function index: 0x10 (from function section => just one function exists)
+*/
+let STATICEXPORT, STATICEXPORTSIZE;
+STATICEXPORT = 33204212636436285751312;
+STATICEXPORTSIZE = 80; // 10 * 8 = 72
+
+currentTranslation = STATICEXPORT;
+GENERATIONSIZE = STATICEXPORTSIZE;
+use generate;
+
+
+// ******** CODE SECTION PART 1 ********
+// module ::= code
+let CODEID, CODESIZE, BLOCK, LOOP, VOID, LOCALGET, LOCALSET, LOCAL, ICONST, FUNCTIONEND, ALLOCATE, SETNEXT, CALL, SETVALUE, ADD, SUB, ISGT, EQZ, BRIF, BR, CREATECHUNK;
+CODEID = 10; // 0x0A (code section id)
+LOCAL = 0; // 0x00
+LOCALGET = 32; // 0x20
+LOCALSET = 33; // 0x21
+FUNCTIONEND = 11; // 0x0B
+ICONST = 65; // 0x41 (i32 constant)
+ALLOCATE = 0; // allocate function ordered in import section
+SETNEXT = 13; // set_next function ordered in import section
+SETVALUE = 12; // set_value function ordered in import section
+CALL = 16; // 0x10 (call function)
+ADD = 3; // add function ordered in import section
+SUB = 4; // sub function ordered in import section
+BLOCK = 2; // 0x02 (block instruction)
+LOOP = 3; // 0x03 (loop instruction)
+VOID = 64; // 0x40 (void type)
+ISGT = 11; // is_gt function ordered in import section
+EQZ = 69; // 0x45 (i32 eqz function)
+BRIF = 13; // 0x0D (branch if true function)
+BR = 12; // 0x0C (branch function)
+CREATECHUNK = 1; // create_chunk function ordered in import section
+
+let codeTemp;
+currentTranslationTemp = translation;
+translation = 0;
+amountOfBytes = 0;
+
+// local declarations
+// declarations: param i represents x_(i + 1), x0 is represented by highestI + 1
+/*
+Structure:
+- x0
+- temp variable 1
+- temp variable 2
+- x1-xn (n = highestI) (already defined as locals because of parameters)
+- constants
+*/
+let outputttt;
+
+let AMOUNTOFLOCALS;
+AMOUNTOFLOCALS = 3; // x0 + temp variable
+
+// now add constants as index from x0 + temp variable (highestI) to highestI + temp variable + amountOfConstants
+let tempConstantPool, constantDefinitionTranslation, tempConstantTranslation, constantByteCount;
+tempConstantPool = constantPool;
+constantByteCount = 0;
+
+tempConstantTranslation = translation;
+while constantPool > 1 do
+    use getNextConstant;
+
+    // prepare already translation which gets inserted after the local declaration
+    // idea: call allocate and set to constant index
+    let bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = CALL;
+    currentTranslation = currentTranslation << bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = currentTranslation + ALLOCATE;
+    currentTranslation = currentTranslation << bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = currentTranslation + LOCALSET;
+    GENERATIONSIZE = 24;
+    use generate;
+
+    constantByteCount = constantByteCount + 3;
+
+    currentTranslation = TEMPVARIABLEPOINTERONE; // $currentNode
+    use encodeLeb;
+    GENERATIONSIZE = lebByteAmount * 8;
+    use generate;
+    constantByteCount = constantByteCount + lebByteAmount;
+
+    currentTranslation = LOCALGET;
+    GENERATIONSIZE = 8;
+    use generate;
+    constantByteCount = constantByteCount + 1;
+
+    currentTranslation = TEMPVARIABLEPOINTERONE; // $currentNode
+    use encodeLeb;
+    GENERATIONSIZE = lebByteAmount * 8;
+    use generate;
+    constantByteCount = constantByteCount + lebByteAmount;
+
+    currentTranslation = LOCALSET;
+    GENERATIONSIZE = 8;
+    use generate;
+    constantByteCount = constantByteCount + 1;
+
+    currentTranslation = AMOUNTOFLOCALS + highestI;
+    use encodeLeb;
+    GENERATIONSIZE = lebByteAmount * 8;
+    use generate;
+    constantByteCount = constantByteCount + lebByteAmount;
+
+    // no special case for 0 needed because allocate already sets it to 0
+    outputttt = currentConstant;
+    // set value and add more if constant chain (constant > 32 bits)
+    while currentConstant > 0 do
+        let chunk, bitsAmount, bitsAmountPower;
+        bitsAmountPower = 4294967296;
+        bitsAmount = 32;
+
+        // get lower 32 bits of constant
+        chunk = currentConstant % bitsAmountPower; // 2^32 = 4294967296
+        currentConstant = currentConstant >> bitsAmount;
+
+        currentTranslation = LOCALGET;
+        GENERATIONSIZE = 8;
+        use generate;
+        constantByteCount = constantByteCount + 1;
+
+        currentTranslation = TEMPVARIABLEPOINTERONE; // $currentNode
+        use encodeLeb;
+        GENERATIONSIZE = lebByteAmount * 8;
+        use generate;
+        constantByteCount = constantByteCount + lebByteAmount;
+
+        currentTranslation = ICONST;
+        GENERATIONSIZE = 8;
+        use generate;
+        constantByteCount = constantByteCount + 1;
+
+        currentTranslation = 65500; // this is always < 2^32
+        use encodeLeb;
+        GENERATIONSIZE = lebByteAmount * 8;
+        use generate;
+        constantByteCount = constantByteCount + lebByteAmount;
+
+        currentTranslation = CALL;
+        GENERATIONSIZE = 8;
+        use generate;
+
+        currentTranslation = SETVALUE;
+        GENERATIONSIZE = 8;
+        use generate;
+
+        constantByteCount = constantByteCount + 2;
+
+        if currentConstant > 0 then
+            // allocate nextNode
+            currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+            currentTranslation = ALLOCATE; GENERATIONSIZE = 8; use generate;
+            currentTranslation = LOCALSET; GENERATIONSIZE = 8; use generate;
+            constantByteCount = constantByteCount + 3;
+            
+            currentTranslation = TEMPVARIABLEPOINTERTWO; // $nextNode
+            use encodeLeb;
+            GENERATIONSIZE = lebByteAmount * 8;
+            use generate;
+            constantByteCount = constantByteCount + lebByteAmount;
+
+
+            // set_next
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate; constantByteCount = constantByteCount + 1;
+
+            currentTranslation = TEMPVARIABLEPOINTERONE; // $currentNode
+            use encodeLeb;
+            GENERATIONSIZE = lebByteAmount * 8;
+            use generate;
+            constantByteCount = constantByteCount + lebByteAmount;
+
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate; constantByteCount = constantByteCount + 1;
+
+            currentTranslation = TEMPVARIABLEPOINTERTWO; // $nextNode
+            use encodeLeb;
+            GENERATIONSIZE = lebByteAmount * 8;
+            use generate;
+            constantByteCount = constantByteCount + lebByteAmount;
+
+            currentTranslation = CALL;
+            GENERATIONSIZE = 8;
+            use generate;
+
+            currentTranslation = SETNEXT;
+            GENERATIONSIZE = 8;
+            use generate;
+
+            constantByteCount = constantByteCount + 2;
+
+
+            // currentNode = nextNode
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate; constantByteCount = constantByteCount + 1;
+
+            currentTranslation = TEMPVARIABLEPOINTERTWO; // $nextNode
+            use encodeLeb;
+            GENERATIONSIZE = lebByteAmount * 8;
+            use generate;
+            constantByteCount = constantByteCount + lebByteAmount;
+
+            currentTranslation = LOCALSET; GENERATIONSIZE = 8; use generate; constantByteCount = constantByteCount + 1;
+
+            currentTranslation = TEMPVARIABLEPOINTERONE; // $currentNode
+            use encodeLeb;
+            GENERATIONSIZE = lebByteAmount * 8;
+            use generate;
+            constantByteCount = constantByteCount + lebByteAmount
+        end
+    end;
+
+    AMOUNTOFLOCALS = AMOUNTOFLOCALS + 1
+End;
+
+// init x0 with 0
+currentTranslation = ICONST;
+GENERATIONSIZE = 8;
+use generate;
+
+currentTranslation = 0; // this is always 0 (because of WHILE semantics)
+GENERATIONSIZE = 8; // no LEB128 because 0 is always 0 in LEB128 encoding
+use generate;
+
+currentTranslation = CALL;
+GENERATIONSIZE = 8;
+use generate;
+
+currentTranslation = CREATECHUNK;
+GENERATIONSIZE = 8;
+use generate;
+
+currentTranslation = LOCALSET;
+GENERATIONSIZE = 8;
+use generate;
+
+constantByteCount = constantByteCount + 5;
+
+currentTranslation = highestI; // x0
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * 8;
+use generate;
+constantByteCount = constantByteCount + lebByteAmount;
+
+constantPool = tempConstantPool; // reset for further analysis
+constantDefinitionTranslation = translation;
+translation = tempConstantTranslation;
+
+// local decl count (amount of groups)
+// this is always 1 because every local is same type and can be defined with one declaration
+currentTranslation = 1;
+GENERATIONSIZE = 8;
+use generate;
+amountOfBytes = amountOfBytes + 1;
+
+// local type count
+currentTranslation = AMOUNTOFLOCALS;
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * 8;
+use generate;
+amountOfBytes = amountOfBytes + lebByteAmount;
+
+// twice because all locals are of same type
+
+// because every local is for now a i32 pointer we can just add one i32 (if in the future there are pointers with different sizes this has to be changed (also the local calculation))
+currentTranslation = ITYPE;
+GENERATIONSIZE = 8;
+use generate;
+amountOfBytes = amountOfBytes + 1;
+
+// CONSTANT INITIALISATION
+let currentConstantIndex;
+currentConstantIndex = highestI + 3; // after x0 (x0 is always the first local variable)
+
+currentTranslation = constantDefinitionTranslation;
+GENERATIONSIZE = constantByteCount * 8;
+use generate;
+amountOfBytes = amountOfBytes + constantByteCount;
+
+// MAIN
+// START PARSING AND GENERATING
+let blockCounter;
+blockCounter = 0;
+let optimise;
+while amountOfTokens > 0 do
+    use getNextToken;
+
+    if currentToken == WHILETOKEN then
+        if integerStream == 1 then
+            error = NOMOREINTEGERS
+        else
+
+            let condition;
+
+            use getNextNumber;
+
+            condition = currentNumber;
+
+            optimise = 0;
+            use twoVarOptimisation;
+
+            if optimise == 1 then
+                if inductionVariable == 0 then // x0
+                    inductionVariable = highestI
+                else
+                    inductionVariable = inductionVariable - 1
+                end;
+                if assignmentVariable == 0 then // x0
+                    assignmentVariable = highestI
+                else
+                    assignmentVariable = assignmentVariable - 1
+                end;
+
+                if plus == 1 then // addition
+                    currentTranslation = LOCALGET;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    // translate addition
+                    currentTranslation = assignmentVariable;
+                    use encodeLeb;
+                    GENERATIONSIZE = lebByteAmount * 8;
+                    use generate;
+                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = assignmentVariable;
+                    use encodeLeb;
+                    GENERATIONSIZE = lebByteAmount * 8;
+                    use generate;
+                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = inductionVariable;
+                    use encodeLeb;
+                    GENERATIONSIZE = lebByteAmount * 8;
+                    use generate;
+                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = CALL;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = ADD;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    amountOfBytes = amountOfBytes + 5
+                else // subtraction
+                    // translate subtraction
+                    currentTranslation = LOCALGET;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    // translate addition
+                    currentTranslation = assignmentVariable;
+                    use encodeLeb;
+                    GENERATIONSIZE = lebByteAmount * 8;
+                    use generate;
+                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = assignmentVariable;
+                    use encodeLeb;
+                    GENERATIONSIZE = lebByteAmount * 8;
+                    use generate;
+                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = inductionVariable;
+                    use encodeLeb;
+                    GENERATIONSIZE = lebByteAmount * 8;
+                    use generate;
+                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = CALL;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = SUB;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    amountOfBytes = amountOfBytes + 5
+                end;
+
+                // also set x1 to 0 with x1 = x1 - x1
+                currentTranslation = LOCALGET;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                // translate addition
+                currentTranslation = inductionVariable;
+                use encodeLeb;
+                GENERATIONSIZE = lebByteAmount * 8;
+                use generate;
+                amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                currentTranslation = inductionVariable;
+                use encodeLeb;
+                GENERATIONSIZE = lebByteAmount * 8;
+                use generate;
+                amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                currentTranslation = inductionVariable;
+                use encodeLeb;
+                GENERATIONSIZE = lebByteAmount * 8;
+                use generate;
+                amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = CALL;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                currentTranslation = SUB;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                amountOfBytes = amountOfBytes + 5
+
+                // Remove tokens not necessary because optimisation already happened
+            else
+                findConstant = 0;
+                i = 3; // start at 3 because 0, 1 and 2 are already used for x0, temp variable 1 and temp variable 2
+                use findConstant;
+
+                if currentNumber == 0 then // x0
+                    condition = highestI
+                else // x1 - xn
+                    condition = currentNumber - 1
+                end;
+                currentTranslation = BLOCK;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                currentTranslation = VOID;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                currentTranslation = LOOP;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                currentTranslation = VOID;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                // add condition check
+                currentTranslation = LOCALGET;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                currentTranslation = condition;
+                use encodeLeb;
+                GENERATIONSIZE = lebByteAmount * 8;
+                use generate;
+                amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                currentTranslation = i + highestI;
+                use encodeLeb;
+                GENERATIONSIZE = lebByteAmount * 8;
+                use generate;
+                amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = CALL;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                currentTranslation = ISGT;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                currentTranslation = EQZ;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                currentTranslation = BRIF;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                currentTranslation = 1; // break depth always 1
+                GENERATIONSIZE = 8;
+                use generate;
+
+                amountOfBytes = amountOfBytes + 11;
+
+                use push
+            end
+        end
+    else
+        if currentToken == ENDTOKEN then
+            // check top of stack
+            // here its easy because we only have to check if the stack is empty or not
+            if stack == 0 then
+                error = NOMOREWHILE
+            else
+                currentTranslation = BR;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                currentTranslation = 0; // break depth always 0 (just break out of loop through the br_if instruction)
+                GENERATIONSIZE = 8;
+                use generate;
+
+                // add end symbol for LOOP
+                currentTranslation = FUNCTIONEND;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                // add end symbol for BLOCK
+                currentTranslation = FUNCTIONEND;
+                GENERATIONSIZE = 8;
+                use generate;
+
+                amountOfBytes = amountOfBytes + 4;
+
+                use pop
+            end
+        else
+            if currentToken > ENDTOKEN then
+                // NUMBER ADDITION
+                if integerStream == 1 then
+                    error = NOMOREINTEGERS
+                else
+                    let xi, xj, c;
+
+                    use getNextNumber;
+                    xi = currentNumber;
+
+                    if xi == 0 then // x0
+                        xi = highestI
+                    else
+                        xi = currentNumber - 1
+                    end;
+
+                    if integerStream == 1 then
+                        error = NOMOREINTEGERS
+                    else
+                        use getNextNumber;
+                        xj = currentNumber;
+
+                        if xj == 0 then // x0
+                            xj = highestI
+                        else
+                            xj = currentNumber - 1
+                        end;
+
+                        if integerStream == 1 then
+                            error = NOMOREINTEGERS
+                        else
+                            use getNextNumber;
+                            c = currentNumber;
+
+                            findConstant = c;
+                            i = 3; // start at 3 because 0, 1 and 2 are already used for x0, temp variable 1 and temp variable 2
+                            use findConstant;
+
+                            if currentToken == PLUSTOKEN then
+                                currentTranslation = LOCALGET;
+                                GENERATIONSIZE = 8;
+                                use generate;
+
+                                // translate addition
+                                currentTranslation = xi;
+                                use encodeLeb;
+                                GENERATIONSIZE = lebByteAmount * 8;
+                                use generate;
+                                amountOfBytes = amountOfBytes + lebByteAmount;
+
+                                currentTranslation = LOCALGET;
+                                GENERATIONSIZE = 8;
+                                use generate;
+
+                                currentTranslation = xj;
+                                use encodeLeb;
+                                GENERATIONSIZE = lebByteAmount * 8;
+                                use generate;
+                                amountOfBytes = amountOfBytes + lebByteAmount;
+
+                                currentTranslation = LOCALGET;
+                                GENERATIONSIZE = 8;
+                                use generate;
+
+                                currentTranslation = i + highestI;
+                                use encodeLeb;
+                                GENERATIONSIZE = lebByteAmount * 8;
+                                use generate;
+                                amountOfBytes = amountOfBytes + lebByteAmount;
+
+                                currentTranslation = CALL;
+                                GENERATIONSIZE = 8;
+                                use generate;
+
+                                currentTranslation = ADD;
+                                GENERATIONSIZE = 8;
+                                use generate;
+
+                                amountOfBytes = amountOfBytes + 5
+                            else
+                                if currentToken == MINUSTOKEN then
+                                    // translate subtraction
+                                    currentTranslation = LOCALGET;
+                                    GENERATIONSIZE = 8;
+                                    use generate;
+
+                                    // translate addition
+                                    currentTranslation = xi;
+                                    use encodeLeb;
+                                    GENERATIONSIZE = lebByteAmount * 8;
+                                    use generate;
+                                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                                    currentTranslation = LOCALGET;
+                                    GENERATIONSIZE = 8;
+                                    use generate;
+
+                                    currentTranslation = xj;
+                                    use encodeLeb;
+                                    GENERATIONSIZE = lebByteAmount * 8;
+                                    use generate;
+                                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                                    currentTranslation = LOCALGET;
+                                    GENERATIONSIZE = 8;
+                                    use generate;
+
+                                    currentTranslation = i + highestI;
+                                    use encodeLeb;
+                                    GENERATIONSIZE = lebByteAmount * 8;
+                                    use generate;
+                                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                                    currentTranslation = CALL;
+                                    GENERATIONSIZE = 8;
+                                    use generate;
+
+                                    currentTranslation = SUB;
+                                    GENERATIONSIZE = 8;
+                                    use generate;
+
+                                    amountOfBytes = amountOfBytes + 5
+                                else
+                                    error = UNRECOGNISEDTOKEN
+                                end
+                            end
+                        end
+                    end
+                end
+            else
+                error = UNREACHABLE // this should never happen
+            end
+        end
+    end;
+
+    if error != 0 then
+        amountOfTokens = 0 // left the loop earlier
+    end
+end;
+
+
+// ******** CODE SECTION PART 2 ********
+// always return x0
+let zeroIndex;
+zeroIndex = highestI;
+currentTranslation = LOCALGET;
+GENERATIONSIZE = 8;
+use generate;
+currentTranslation = zeroIndex;
+GENERATIONSIZE = 8;
+use generate;
+amountOfBytes = amountOfBytes + 2;
+
+codeTemp = translation;
+translation = currentTranslationTemp;
+
+// add code section to translation
+currentTranslation = CODEID;
+GENERATIONSIZE = 8;
+use generate;
+
+// calculate function size
+currentTranslation = amountOfBytes + 1; // amount of bytes in the code section (easy because just one function exists) + 1 (for the function end symbol)
+use encodeLeb;
+currentTranslationOne = currentTranslation;
+generationSizeOne = lebByteAmount * 8;
+generationSizeTwo = amountOfBytes + lebByteAmount;
+
+// section size
+currentTranslation = generationSizeTwo + 2; // + 2 because of amount of functions and end symbol
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * 8;
+use generate;
+
+// set amount of functions (this is always 0x01 for main function)
+currentTranslation = 1;
+GENERATIONSIZE = 8;
+use generate;
+
+// set function size
+currentTranslation = currentTranslationOne;
+GENERATIONSIZE = generationSizeOne;
+use generate;
+
+// add code section to translation
+currentTranslation = codeTemp;
+GENERATIONSIZE = amountOfBytes * 8;
+use generate;
+
+// add end symbol
+currentTranslation = FUNCTIONEND;
+GENERATIONSIZE = 8;
+use generate;
+
+
+if stack != 0 then
+    error = NOMOREEND
+else
+    if integerStream != 1 then
+        error = TOMANYINTEGERS
+    end
+end;
+
+// error = print // for testing
+
+if error == 0 then
+    x0 = translation
+else
+    x0 = error
+end

@@ -1,0 +1,14 @@
+let msg;
+msg = 1;
+echo msg;
+echo amountOfTokens;
+msg = 2;
+echo msg;
+echo tokenStream;
+msg = 3;
+echo msg;
+echo integerStream;
+msg = 4;
+echo msg;
+echo constantPool;
+x0 = amountOfTokens

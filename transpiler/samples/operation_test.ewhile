@@ -1,0 +1,9 @@
+let operate, operator;
+
+operate = 2019;
+operator = 2;
+
+x1 = operate % operator;
+
+// x0 = x1
+x0 = operator

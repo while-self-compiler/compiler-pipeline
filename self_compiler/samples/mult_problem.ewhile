@@ -1,0 +1,10 @@
+let num, digit, i, factor;
+
+factor = 10;
+i = 13;
+while i > 0 do
+    digit = 3;
+    num = num * factor;
+    num = num + digit;
+    i = i - 1
+end

@@ -1,0 +1,16 @@
+let subCounter, operand, modValue, shift;
+
+x0 = 13;
+operand = 17;
+modValue = 4294967296;
+subCounter = 10000000;
+shift = 28;
+
+x0 = x0 << shift;
+
+while subCounter > 0 do
+    x0 = x0 - operand;
+    subCounter = subCounter - 1
+end;
+
+x0 = x0 % modValue

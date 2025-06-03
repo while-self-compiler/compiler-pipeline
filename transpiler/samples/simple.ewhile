@@ -1,0 +1,4 @@
+zaehler = 2;
+shift = x1 % zaehler;
+
+x0 = shift

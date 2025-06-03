@@ -1,0 +1,36 @@
+let wordLen, foundNum, num, mult, shift, word, digit;
+
+            x1 = 219885614456;
+            x2 = 5;
+
+            let lol;
+            lol = 4;
+            while lol > 0 do
+                wordLen = 1;
+                foundNum = 1;
+                num = 0;
+                mult = 10;
+                while foundNum > 0 do
+                    foundNum = 0;
+                    shift = x2 - wordLen;
+                    shift = shift * 8;
+                    word = x1 >> shift;
+                    if word > 47 then
+                        if 58 > word then
+                            foundNum = 1;
+                            digit = word - 48
+                        end
+                    end;
+                    if foundNum > 0 then
+                        num = num * mult;
+                        num = num + digit;
+                        shift = x2 - wordLen;
+                        shift = shift * 8;
+                        word = word << shift;
+                        x2 = x2 - wordLen;
+                        x1 = x1 - word
+                    end
+                end;
+                lol = 0
+            end;
+            x0 = num

@@ -1,0 +1,110 @@
+// SEARCHABLE SNIPPETS
+let wordWhile, wordX, wordEnd, wordPlus, wordMinus, wordEqual, wordDo, wordSpace, wordNewline, wordTab, wordSemikolon;
+wordWhile = 24567802623238232; // "WHILE X" 7
+wordX = 88; // "X" 1
+wordEnd = 4542020; // "END" 3
+wordPlus = 2108192; // " + " 3
+wordMinus = 2108704; // " - " 3
+wordEqual = 540876888; // " = X" 4
+wordDo = 9075507222037583; // " > 0 DO" 7
+wordSpace = 32; // " " 1
+wordNewline = 10; // "\n" 1
+wordTab = 9; // "\t" 1
+wordSemikolon = 59; // ";" 1
+
+// TOKEN
+let tWhile, tPlus, tMinus, tEnd;
+tWhile = 0;
+tEnd = 1;
+tPlus = 2;
+tMinus = 3;
+
+constantOffset = 0;
+numLeng = 4;
+constantOffset = constantOffset + numLeng;
+
+highestI = 130;
+
+while x1 > 0 do
+    // MAIN LEXER LOOP
+    tokenFound = 0;
+
+    use jumpWhitespace;
+    // CHECK WHILE
+    wordLen = 7;
+    use getWord;
+    if word == wordWhile then
+        tokenFound = 1;
+        use delWord;
+        use parseNumber;
+        use updateHighestI;
+        use numOut;
+        wordLen = 7;
+        use getWord;
+        // TODO: Check if DO else Error
+        use delWord;
+        token = tWhile;
+        use pushToken
+    end;
+
+    // CHECK END
+    wordLen = 3;
+    use getWord;
+    if word == wordEnd then
+        tokenFound = 1;
+        use delWord;
+        token = tEnd;
+        use pushToken
+    end;
+
+    // CHECK X
+    wordLen = 1;
+    use getWord;
+    if word == wordX then
+        tokenFound = 1;
+        use delWord;
+        use parseNumber;
+        use updateHighestI;
+        use numOut;
+        wordLen = 4;
+        use getWord;
+        // TODO: Check if = else Error
+        use delWord;
+        use parseNumber;
+        use updateHighestI;
+        use numOut;
+        wordLen = 3;
+        use getWord;
+        if word == wordPlus then
+            token = tPlus
+        end;
+        if word == wordMinus then
+            token = tMinus
+        end;
+        // TODO: Check if token set else Error
+        use pushToken;
+        use delWord;
+        use parseNumber;
+        use numOut;
+        use constOut
+    end;
+    if word == wordSemikolon then
+        tokenFound = 1;
+        use delWord
+    end;
+    if tokenFound == 0 then
+        x1 = 0
+    end
+end;
+
+
+// ADD MAGIC NUMBERS
+num = 1;
+shift = integerOffset;
+num = num << shift;
+integerStream = integerStream + num;
+
+num = 1;
+shift = constantOffset;
+num = num << shift;
+constantPool = constantPool + num;

@@ -1,0 +1,45 @@
+/*****************************************************************
+
+WHILE Self-Compiler: Bit shift left Program
+
+x0 = n1 << n2
+
+******************************************************************/
+
+
+/ Approach: 
+/ x1 << x2 = x1 * 2^x2
+
+
+
+x10 = x10 + 1; // constant on 1
+x0 = x1 + 0;   
+x3 = x2 + 0;   
+x4 = x10 + 0;    
+
+/ calulate 2^x2 in x4
+while x3 > 0 do
+
+    / x4 = x4 * 2
+    x6 = x4 + 0;
+    while x6 > 0 do
+        x6 = x6 - 1;
+        x4 = x4 + 1
+    end;
+
+    x3 = x3 - 1
+end;
+
+x5 = x4 + 0;  
+x0 = x7 + 0;   / set x0 to 0
+
+// x0 = x1 * x4
+while x5 > 0 do
+    x8 = x1 + 0;
+    while x8 > 0 do
+        x0 = x0 + 1;
+        x8 = x8 - 1
+    end;
+
+    x5 = x5 - 1
+end

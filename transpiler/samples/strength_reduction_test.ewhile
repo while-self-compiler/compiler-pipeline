@@ -1,0 +1,74 @@
+
+let xk, xi, xp, c, cc, ccc, xtemp, xl, cccc;
+c = 1;
+cc = 2;
+xi = 3;
+xp = 10;
+xk = x1;
+ccc = 1;
+cccc = 2;
+
+/*
+1: 
+
+while xk > 0 do
+	xi = xi + c;
+	while xp > 0 do
+		xp = xp - ccc;
+		xk = xk - cc
+	end; 
+    xk = xk - 1
+end;
+
+while xk > 0 do
+    xi = xi + c;
+
+    xtemp = xp / ccc;
+    xtemp = xtemp * cc;
+    xk = xk - xtemp;
+    xp = xp % ccc;
+
+    xk = xk - 1
+end;
+
+
+2:
+
+while xk > 0 do
+	xi = xi + c;
+	while xp > 0 do
+		xp = xp - ccc;
+        xl = xk + cccc;
+		xk = xk - cc
+	end; 
+    xk = xk - 1
+end;
+
+while xk > 0 do
+	xi = xi + c;
+
+    xtemp = xp / ccc;
+    xtemp = xtemp * cc;
+    xl = xk - xtemp;
+    xl = xl + cc;
+    xk = xk - xtemp;
+    xp = xp % ccc;
+
+    xk = xk - 1
+end;
+
+*/
+
+while xk > 0 do
+	xi = xi + c;
+
+    xtemp = xp / ccc;
+    xtemp = xtemp * cc;
+    xl = xk - xtemp;
+    xl = xl + cc;
+    xk = xk - xtemp;
+    xp = xp % ccc;
+
+    xk = xk - 1
+end;
+x0 = xl

@@ -1,0 +1,10 @@
+let wordLen, word, foundWhitespace, shift;
+let wordSpace, wordNewline, wordTab;
+
+x0 = x1 >> shift;
+if x0 == x1 then
+    foundWhitespace = 1
+end;
+if x0 == x1 then
+    foundWhitespace = 1
+end

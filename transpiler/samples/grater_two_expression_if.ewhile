@@ -1,0 +1,8 @@
+in = x1;
+inn = x2;
+
+if in > inn THEN
+    x0 = in + 0
+else 
+    x0 = inn + 0
+End

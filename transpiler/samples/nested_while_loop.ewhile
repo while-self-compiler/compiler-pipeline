@@ -1,0 +1,7 @@
+while x1 > 0 do
+    while x2 > 0 do
+        x0 = x0 + 1;
+        x2 = x2 - 1
+    end;
+    x1 = x1 - 1
+end

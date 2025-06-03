@@ -1,0 +1,26 @@
+
+/***********************************************
+/ E-WHILE Transpiler: Bit shift right
+/ {{0}} = {{1}} >> {{2}} (rounded down / floor)
+/ Approach: {{1}} >> {{2}} = {{1}} / 2^{{2}}
+
+{{3}} = {{2}} + 0; / temp variable (it resets to 0 automatically)
+{{4}} = {{1}} + 0; / temp variable (state gets changed after bit shift)
+
+while {{3}} > 0 do
+    {{7}} = {{8}} + 0; / temp variable (state gets changed after bit shift)
+    {{5}} = {{4}} + 0; / temp variable (state gets changed after bit shift)
+    {{6}} = {{5}} - 1; / temp variable (it resets to 0 automatically)
+    
+    while {{6}} > 0 do
+        {{5}} = {{5}} - 2; 
+        {{7}} = {{7}} + 1;    
+        {{6}} = {{5}} - 1     
+    end;
+    
+    {{4}} = {{7}} + 0;  
+    {{3}} = {{3}} - 1  
+end;
+
+{{0}} = {{4}} + 0   
+/***********************************************

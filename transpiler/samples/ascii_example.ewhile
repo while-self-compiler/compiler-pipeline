@@ -1,0 +1,20 @@
+let code, shifts, temp, op, msb, msbb, index;
+
+code = 87104105108101032120049032062032048032068111010032032032032120048032061032120048032043032050059010032032032032120049032061032120049032045032049010069110100;
+
+shifts = 0;
+temp = code;
+op = 8;
+
+while temp - 255 > 0 do 
+    temp = temp >> op;
+    shifts = shifts + 8 
+end; 
+
+msb = temp;
+msbb = msb << shifts;
+code = code - msbb;
+
+index = index + 1;
+
+x0 = msb

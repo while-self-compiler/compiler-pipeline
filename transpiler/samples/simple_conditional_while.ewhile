@@ -1,0 +1,7 @@
+test = 2;
+
+while test == 2 do
+    test = test - 1
+end; // should execute once
+
+x0 = test 

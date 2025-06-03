@@ -1,0 +1,21 @@
+                
+                
+        
+        x2 = x2 + 0;
+x3 = x3 + 1;
+x1 = x1 - 1;
+echo x1;
+While x1 > 0 Do
+    x4 = x2 + 0;  
+    x5 = x3 + 0;
+    While x5 > 0 Do
+        x4 = x4 + 1;
+        x5 = x5 - 1
+    End;
+
+    x2 = x3 + 0;  
+    x3 = x4 + 0;  
+    x1 = x1 - 1
+End;
+
+x0 = x3 + 0

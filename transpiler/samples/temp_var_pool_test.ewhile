@@ -1,0 +1,4 @@
+let a, b;
+a = a * b;
+b = a + b;
+x0 = a * b

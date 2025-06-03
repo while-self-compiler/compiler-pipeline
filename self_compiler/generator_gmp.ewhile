@@ -1,0 +1,1566 @@
+// CONSTANTS
+let TOKENSIZE, GENERATIONSIZE;
+let WHILETOKEN, ENDTOKEN, PLUSTOKEN, MINUSTOKEN;
+WHILETOKEN = 0; // 00
+ENDTOKEN = 1; // 01
+PLUSTOKEN = 2; // 10
+MINUSTOKEN = 3; // 11
+
+
+// GLOBALS
+let currentToken, tempTempTemp, currentConstant, currentNumber, temp, tempTemp, translation, error, stack, currentTranslation, tempHighestI, amountOfBytes;
+currentToken = 0;
+translation = 0;
+currentTranslation = 0;
+error = 0;
+currentNumber = 0;
+currentConstant = 0;
+temp = 0;
+tempTemp = 0;
+stack = 0;
+amountOfBytes = 0;
+tempHighestI = highestI;
+
+
+// ERROR CODES
+let UNRECOGNISEDTOKEN, NOMOREINTEGERS, NOMOREWHILE, NOMOREEND, UNREACHABLE, TOMANYINTEGERS;
+UNRECOGNISEDTOKEN = 1;
+NOMOREINTEGERS = 2;
+NOMOREWHILE = 3;
+NOMOREEND = 4;
+UNREACHABLE = 5;
+TOMANYINTEGERS = 6;
+
+
+// WASM TRANSLATIONS
+/*
+1. Import instruction calculation: (order matters!)
+(import "env" "create_bigint" (func $create_bigint (result i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x0D 0x63 0x72 0x65 0x61 0x74 0x65 0x5F 0x62 0x69 0x67 0x69 0x6E 0x74 ("create_bigint") 0x00 0x00
+(import "env" "push_u32_to_bigint" (func $push_u32_to_bigint (param i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x12 0x70 0x75 0x73 0x68 0x5F 0x75 0x33 0x32 0x5F 0x74 0x6F 0x5F 0x62 0x69 0x67 0x69 0x6E 0x74 ("push_u32_to_bigint") 0x00 0x04
+(import "env" "copy" (func $copy (param i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x04 0x63 0x6F 0x70 0x79 ("copy") 0x00 0x02
+(import "env" "add" (func $add (param i32 i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x03 0x61 0x64 0x64 ("add") 0x00 0x03
+(import "env" "sub" (func $sub (param i32 i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x03 0x73 0x75 0x62 ("sub") 0x00 0x03
+(import "env" "mul" (func $mul (param i32 i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x03 0x6D 0x75 0x6C ("mul") 0x00 0x03
+(import "env" "div" (func $div (param i32 i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x03 0x64 0x69 0x76 ("div") 0x00 0x03
+(import "env" "right_shift" (func $right_shift (param i32 i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x0B 0x72 0x69 0x67 0x68 0x74 0x5F 0x73 0x68 0x69 0x66 0x74 ("right_shift") 0x00 0x03
+(import "env" "left_shift" (func $left_shift (param i32 i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x0A 0x6C 0x65 0x66 0x74 0x5F 0x73 0x68 0x69 0x66 0x74 ("left_shift") 0x00 0x03
+(import "env" "mod" (func $mod (param i32 i32 i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x03 0x6D 0x6F 0x64 ("mod") 0x00 0x03
+(import "env" "set_to_zero" (func $set_to_zero (param i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x0B 0x73 0x65 0x74 0x5F 0x74 0x6F 0x5F 0x7A 0x65 0x72 0x6F ("set_to_zero") 0x00 0x04
+(import "env" "is_gt" (func $is_gt (param i32 i32) (result i32)))
+= 0x03 0x65 0x6E 0x76 ("env") 0x05 0x69 0x73 0x5F 0x67 0x74 ("is_gt") 0x00 0x05
+
+- everything together:
+0x03656E760D6372656174655F626967696E740000 03656E7612707573685F7533325F746F5F626967696E740004 03656E7604636F70790002 03656E76036164640003 03656E76037375620003 03656E76036D756C0003 03656E76036469760003 03656E760B72696768745F73686966740003 03656E760A6C6566745F73686966740003 03656E76036D6F640003 03656E760B7365745F746F5F7A65726F0004 03656E760569735F67740005 
+without WS: 0x03656E760D6372656174655F626967696E74000003656E7612707573685F7533325F746F5F626967696E74000403656E7604636F7079000203656E7603616464000303656E7603737562000303656E76036D756C000303656E7603646976000303656E760B72696768745F7368696674000303656E760A6C6566745F7368696674000303656E76036D6F64000303656E760B7365745F746F5F7A65726F000403656E760569735F67740005
+
+- function types:
+(func (result i32)) => 0x60 0x00 0x01 0x7F
+(func (param i32) (result i32)) => 0x60 0x01 0x7F 0x01 0x7F (possible main function)
+(func (param i32 i32)) => 0x60 0x02 0x7F 0x7F 0x00
+(func (param i32 i32 i32)) => 0x60 0x03 0x7F 0x7F 0x7F 0x00
+(func (param i32 i32 i32)) => 0x60 0x03 0x7F 0x7F 0x7F 0x00 (exists)
+(func (param i32 i32 i32)) => 0x60 0x03 0x7F 0x7F 0x7F 0x00 (exists)
+(func (param i32 i32 i32)) => 0x60 0x03 0x7F 0x7F 0x7F 0x00 (exists)
+(func (param i32 i32 i32)) => 0x60 0x03 0x7F 0x7F 0x7F 0x00 (exists)
+(func (param i32 i32 i32)) => 0x60 0x03 0x7F 0x7F 0x7F 0x00 (exists)
+(func (param i32 i32 i32)) => 0x60 0x03 0x7F 0x7F 0x7F 0x00 (exists)
+(func (param i32)) => 0x60 0x01 0x7F 0x00
+(func (param i32 i32) (result i32)) => 0x60 0x02 0x7F 0x7F 0x01 0x7F (possible main function)
+(func (param i32 i32)) => 0x60 0x02 0x7F 0x7F 0x00 (exists)
+(func (param i32 i32)) => 0x60 0x02 0x7F 0x7F 0x00 (exists)
+(func (param i32) (result i32)) => 0x60 0x01 0x7F 0x01 0x7F (exists)
+(func (param i32) (result i32)) => 0x60 0x01 0x7F 0x01 0x7F (exists)
+
+- everything together:
+0x6000017F 60017F017F 60027F7F00 60037F7F7F00 60017F00 60027F7F017F
+without WS: 0x6000017F60017F017F60027F7F0060037F7F7F0060017F0060027F7F017F
+*/
+
+let print;
+let lebByteAmount, currentTranslationTemp;
+let currentTranslationOne, TEMPVARIABLEPOINTERONE, TEMPVARIABLEPOINTERTWO, currentTranslationTwo, currentTranslationThree, generationSizeOne, generationSizeTwo, generationSizeThree;
+lebByteAmount = 0; // gets set by encodeLeb macro
+TEMPVARIABLEPOINTERONE = highestI + 1; // one after x0
+TEMPVARIABLEPOINTERTWO = highestI + 2; // one after x0 + temp variable (x0 is always the first local variable)
+let i, findConstant;
+// TRANSLATION HEADER
+let ITYPE;
+ITYPE = 127; // 0x7F (i32)
+
+
+// ******** MAGIC NUMBER ********
+// module ::= magic
+let MAGICNUMBER;
+MAGICNUMBER = 6386541; // 0x00 0x61 0x73 0x6D
+
+currentTranslation = MAGICNUMBER;
+GENERATIONSIZE = 24;
+use generate;
+
+
+// ******** VERSION ********
+// module ::= version
+let VERSION;
+VERSION = 16777216; // 0x01 0x00 0x00 0x00
+
+currentTranslation = VERSION;
+GENERATIONSIZE = 32;
+use generate;
+
+
+// ******** TYPE SECTION ********
+// module ::= type
+/*
+Structure:
+- section id: 0x01
+- section size: 0xXX (calculated from the amount of bytes in the section without section id and size (LEB128 encoding))
+- amount of types: 0xXX (LEB128 encoding)
+- content: (every element is a functype (no other types needed))
+- functype: 0x60
+- amount of parameters: 0xXX (LEB128 encoding)
+- parameters: 0x7F (i32)
+- amount of results: 0xXX (LEB128 encoding)
+- results: 0x7F (i32)
+*/
+
+let TYPESECTIONID, FUNCTIONTYPEID, ALLFUNCTYPES, AMOUNTOFIMPORTFUNCTION, MAINRESTYPE;
+TYPESECTIONID = 1; // 0x01
+FUNCTIONTYPEID = 96; // 0x60
+ALLFUNCTYPES = 662567807003230930624190222691289759919585936578558016344727839582388607; // each precalculated import function as a type (main functions gets added dynamically)
+AMOUNTOFIMPORTFUNCTION = 6;
+MAINRESTYPE = 383; // 0x01 (amount of result => here always 1 for x0) 0x7F (i32) (already converted to LEB128 encoding)
+let typeTemp;
+currentTranslationTemp = translation;
+translation = 0;
+
+// check if main function signature matches with an import function signature¨
+/*
+if highestI != 1 then
+if highestI != 2 then
+// if more import functypes are needed this may be extended
+AMOUNTOFIMPORTFUNCTION = AMOUNTOFIMPORTFUNCTION + 1 // +1 for main function
+end
+end;
+*/
+// attention: the above isn't needed because in WASM there can also be identical functypes so we don't need to check for duplicates
+AMOUNTOFIMPORTFUNCTION = AMOUNTOFIMPORTFUNCTION + 1; // +1 for main function => always after the import functypes
+let constEightGenerator;
+constEightGenerator = 8;
+currentTranslation = AMOUNTOFIMPORTFUNCTION;
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * constEightGenerator;
+use generate;
+
+// all import types
+currentTranslation = ALLFUNCTYPES;
+GENERATIONSIZE = 240; // 30 * constEightGenerator = 240
+use generate;
+
+amountOfBytes = 30;
+
+// add main dynamically
+// amount of parameters
+currentTranslation = FUNCTIONTYPEID;
+GENERATIONSIZE = 8;
+use generate;
+currentTranslation = highestI;
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * constEightGenerator;
+use generate;
+
+// functype parameters and result
+while tempHighestI > 0 do
+    currentTranslation = ITYPE;
+    GENERATIONSIZE = 8;
+    use generate;
+
+    tempHighestI = tempHighestI - 1
+end;
+// restype
+currentTranslation = MAINRESTYPE;
+GENERATIONSIZE = 16;
+use generate;
+amountOfBytes = amountOfBytes + highestI;
+amountOfBytes = amountOfBytes + 5; // 5 = 2 prefix bytes + 2 result bytes + itself
+
+typeTemp = translation;
+
+translation = currentTranslationTemp;
+
+// add type section to translation
+currentTranslation = TYPESECTIONID;
+GENERATIONSIZE = 8;
+use generate;
+
+// section size
+currentTranslation = amountOfBytes + 1;
+// currentTranslation = amountOfBytes;
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * constEightGenerator;
+use generate;
+
+// TODO: Change this
+amountOfBytes = amountOfBytes + 1;
+
+// add type section to translation
+currentTranslation = typeTemp;
+GENERATIONSIZE = amountOfBytes * constEightGenerator;
+use generate;
+
+
+// ******** IMPORT SECTION ********
+// TODO: As an optimisation: This can be fully precalculated
+// module ::= import
+let IMPORTSECTIONID, STATICIMPORTBODY, STATICIMPORTBODYSIZE, STATICIMPORTBODYPOST, STATICAMOUNTOFIMPORTS;
+IMPORTSECTIONID = 2; // 0x02
+STATICIMPORTBODYSIZE = 171; // ordered imports size: 20 + 25 + 11 + 10 + 10 + 10 + 10 + 18 + 17 + 10 + 18 + 12 = 171
+STATICIMPORTBODY = 85465237337317964929075220732979195574797539655758201106557201403335277515004081946484118230372597513499644909949489871918794463343621827765839609392795177961864598582852311905205235479626112382534476354545281252890810712786168167987478956839660943133322073600242075558486588273546831239361978863743787976287988059088904963268449221126765251166626255674053355887250397252632240283008626459491485072882704580613;
+STATICAMOUNTOFIMPORTS = 12; // 0x0C (if more imports are needed this may be extended to LEB128 encoding)
+
+currentTranslation = IMPORTSECTIONID;
+GENERATIONSIZE = 8;
+use generate;
+
+currentTranslation = STATICIMPORTBODYSIZE + 1; // + 1 because of size of STATICAMOUNTOFIMPORTS (this should be changed if the size of the imports changes)
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * constEightGenerator;
+use generate;
+
+currentTranslation = STATICAMOUNTOFIMPORTS;
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * constEightGenerator;
+use generate;
+
+currentTranslation = STATICIMPORTBODY;
+GENERATIONSIZE = STATICIMPORTBODYSIZE * constEightGenerator;
+use generate;
+
+
+// ******** FUNCTION SECTION ********
+// module ::= function
+let FUNCTIONSECTIONID, FUNCTIONSECTIONSIZE, AMOUNTOFFUNCTIONS, FUNCTIONSIGNATUREPOINTER;
+FUNCTIONSECTIONID = 3; // 0x03
+FUNCTIONSECTIONSIZE = 0;
+AMOUNTOFFUNCTIONS = 1; // 0x01 (only main function required for WHILE)
+FUNCTIONSIGNATUREPOINTER = AMOUNTOFIMPORTFUNCTION - 1; // always the last function of teh type section (TODO: Rename AMOUNTOFIMPORTFUNCTION to something else more type section related)
+
+currentTranslation = FUNCTIONSECTIONID;
+GENERATIONSIZE = 8;
+use generate;
+
+currentTranslationTwo = AMOUNTOFFUNCTIONS;
+use encodeLeb;
+generationSizeTwo = lebByteAmount * constEightGenerator;
+FUNCTIONSECTIONSIZE = FUNCTIONSECTIONSIZE + lebByteAmount;
+
+currentTranslationThree = FUNCTIONSIGNATUREPOINTER;
+use encodeLeb;
+generationSizeThree = lebByteAmount * constEightGenerator;
+FUNCTIONSECTIONSIZE = FUNCTIONSECTIONSIZE + lebByteAmount;
+
+currentTranslationOne = FUNCTIONSECTIONSIZE;
+use encodeLeb;
+generationSizeOne = lebByteAmount * constEightGenerator;
+
+currentTranslation = currentTranslationOne;
+GENERATIONSIZE = generationSizeOne;
+use generate;
+
+currentTranslation = currentTranslationTwo;
+GENERATIONSIZE = generationSizeTwo;
+use generate;
+
+currentTranslation = currentTranslationThree;
+GENERATIONSIZE = generationSizeThree;
+use generate;
+
+
+// ******** EXPORT SECTION ********
+// module ::= export
+/*
+Structure:
+- section id: 0x07
+- section size: 0x08
+- amount of exports: 0x01
+- name length: 0x04 (4 bytes for "main")
+- name: 0x6D 0x61 0x69 0x6E ("main")
+- export kind: 0x00 (function)
+- function index: 0x0C (from function section => just one function exists)
+*/
+let STATICEXPORT, STATICEXPORTSIZE;
+STATICEXPORT = 33204212636436285751308;
+STATICEXPORTSIZE = 80; // 10 * constEightGenerator 
+
+currentTranslation = STATICEXPORT;
+GENERATIONSIZE = STATICEXPORTSIZE;
+use generate;
+
+
+// ******** CODE SECTION PART 1 ********
+// module ::= code
+let CODEID, CODESIZE, BLOCK, LOOP, PUSHTOBIGINT, CREATEBIGINT, VOID, LOCALGET, LOCALSET, LOCAL, ICONST, FUNCTIONEND, CALL, ADD, SUB, MUL, DIV, SHIFTRIGHT, SHIFTLEFT, MOD, ISGT, EQZ, BRIF, BR, CREATECHUNK;
+CODEID = 10; // 0x0A (code section id)
+LOCAL = 0; // 0x00
+LOCALGET = 32; // 0x20
+LOCALSET = 33; // 0x21
+FUNCTIONEND = 11; // 0x0B
+ICONST = 65; // 0x41 (i32 constant)
+CALL = 16; // 0x10 (call function)
+ADD = 3; // add function ordered in import section
+SUB = 4; // sub function ordered in import section
+MUL = 5; // mul function ordered in import section
+DIV = 6; // div function ordered in import section
+SHIFTRIGHT = 7; // right_shift function ordered in import section
+SHIFTLEFT = 8; // left_shift function ordered in import section
+MOD = 9; // mod function ordered in import section
+BLOCK = 2; // 0x02 (block instruction)
+LOOP = 3; // 0x03 (loop instruction)
+VOID = 64; // 0x40 (void type)
+ISGT = 11; // is_gt function ordered in import section
+EQZ = 69; // 0x45 (i32 eqz function)
+BRIF = 13; // 0x0D (branch if true function)
+BR = 12; // 0x0C (branch function)
+CREATEBIGINT = 0; // create_bigint function ordered in import section
+PUSHTOBIGINT = 1; // push_u32_to_bigint function ordered in import section
+
+let codeTemp;
+currentTranslationTemp = translation;
+translation = 0;
+amountOfBytes = 0;
+
+// local declarations
+// declarations: param i represents x_(i + 1), x0 is represented by highestI + 1
+/*
+Structure:
+- x0
+- temp variable 1
+- temp variable 2
+- x1-xn (n = highestI) (already defined as locals because of parameters)
+- constants
+*/
+
+let AMOUNTOFLOCALS;
+AMOUNTOFLOCALS = 3; // x0 + temp variable
+
+let isZeroAllocated; // used to set a 0 constant, which is needed for > 0 while loops
+let isOneAllocated; // used to set a 1 constant, which is needed for general optimiser
+// now add constants as index from x0 + temp variable (highestI) to highestI + temp variable + amountOfConstants
+let tempConstantPool, constantDefinitionTranslation, tempConstantTranslation, constantByteCount;
+tempConstantPool = constantPool;
+constantByteCount = 0;
+
+tempConstantTranslation = translation;
+while constantPool > 1 do
+    use getNextConstant;
+
+    if currentConstant == 0 then
+        isZeroAllocated = 1
+    end;
+
+    if currentConstant == 1 then
+        isOneAllocated = 1
+    end;
+
+    // prepare already translation which gets inserted after the local declaration
+    // idea: call allocate and set to constant index
+    let bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = CALL;
+    currentTranslation = currentTranslation << bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = currentTranslation + CREATEBIGINT;
+    currentTranslation = currentTranslation << bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = currentTranslation + LOCALSET;
+    GENERATIONSIZE = 24;
+    use generate;
+
+    constantByteCount = constantByteCount + 3;
+
+    currentTranslation = AMOUNTOFLOCALS + highestI;
+    use encodeLeb;
+    GENERATIONSIZE = lebByteAmount * constEightGenerator;
+    use generate;
+    constantByteCount = constantByteCount + lebByteAmount;
+
+    // set value and add more if constant chain (constant > 32 bits)
+    while currentConstant > 0 do
+        let chunk, bitsAmount, bitsAmountPower;
+        bitsAmountPower = 4294967296; // 2^32
+        bitsAmount = 32;
+
+        // get lower 32 bits of constant
+        chunk = currentConstant % bitsAmountPower;
+        currentConstant = currentConstant >> bitsAmount;
+
+        currentTranslation = ICONST;
+        GENERATIONSIZE = 8;
+        use generate;
+        constantByteCount = constantByteCount + 1;
+
+        currentTranslation = chunk; 
+        use encodeLeb;
+        GENERATIONSIZE = lebByteAmount * constEightGenerator;
+        use generate;
+        constantByteCount = constantByteCount + lebByteAmount;
+
+        currentTranslation = CALL;
+        GENERATIONSIZE = 8;
+        use generate;
+
+        currentTranslation = PUSHTOBIGINT;
+        GENERATIONSIZE = 8;
+        use generate;
+
+        constantByteCount = constantByteCount + 2
+    end;
+
+    AMOUNTOFLOCALS = AMOUNTOFLOCALS + 1
+end;
+
+if isZeroAllocated == 0 then
+    // TODO: Add this directly in the lexical analysis
+
+    // there is no 0 constant so we have to set it manually
+    let bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = CALL;
+    currentTranslation = currentTranslation << bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = currentTranslation + CREATEBIGINT;
+    currentTranslation = currentTranslation << bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = currentTranslation + LOCALSET;
+    GENERATIONSIZE = 24;
+    use generate;
+
+    constantByteCount = constantByteCount + 3;
+
+    currentTranslation = AMOUNTOFLOCALS + highestI;
+    use encodeLeb;
+    GENERATIONSIZE = lebByteAmount * constEightGenerator;
+    use generate;
+    constantByteCount = constantByteCount + lebByteAmount;
+
+    // set value not needed because allocate already sets it to 0
+    // now add it also to the constant pool
+    num = 0;
+    use constOut;
+
+    AMOUNTOFLOCALS = AMOUNTOFLOCALS + 1
+end;
+
+if isOneAllocated == 0 then
+    // TODO: Add this directly in the lexical analysis
+
+    // there is no 1 constant so we have to set it manually
+    let bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = CALL;
+    currentTranslation = currentTranslation << bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = currentTranslation + CREATEBIGINT;
+    currentTranslation = currentTranslation << bitShiftForOp;
+    bitShiftForOp = 8;
+    currentTranslation = currentTranslation + LOCALSET;
+    GENERATIONSIZE = 24;
+    use generate;
+
+    constantByteCount = constantByteCount + 3;
+
+    currentTranslation = AMOUNTOFLOCALS + highestI;
+    use encodeLeb;
+    GENERATIONSIZE = lebByteAmount * constEightGenerator;
+    use generate;
+    constantByteCount = constantByteCount + lebByteAmount;
+
+    // set value
+    currentTranslation = ICONST;
+    GENERATIONSIZE = 8;
+    use generate;
+    constantByteCount = constantByteCount + 1;
+
+    currentTranslation = 1; 
+    use encodeLeb;
+    GENERATIONSIZE = lebByteAmount * constEightGenerator;
+    use generate;
+    constantByteCount = constantByteCount + lebByteAmount;
+
+    currentTranslation = CALL;
+    GENERATIONSIZE = 8;
+    use generate;
+
+    currentTranslation = PUSHTOBIGINT;
+    GENERATIONSIZE = 8;
+    use generate;
+
+    constantByteCount = constantByteCount + 2;
+
+    // now add it also to the constant pool
+    num = 1;
+    use constOut;
+
+    AMOUNTOFLOCALS = AMOUNTOFLOCALS + 1
+end;
+
+// init x0 with 0
+currentTranslation = CALL;
+GENERATIONSIZE = 8;
+use generate;
+
+currentTranslation = CREATEBIGINT;
+GENERATIONSIZE = 8;
+use generate;
+
+currentTranslation = LOCALSET;
+GENERATIONSIZE = 8;
+use generate;
+
+constantByteCount = constantByteCount + 3;
+
+currentTranslation = highestI; // x0
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * constEightGenerator;
+use generate;
+constantByteCount = constantByteCount + lebByteAmount;
+
+constantPool = tempConstantPool; // reset for further analysis
+constantDefinitionTranslation = translation;
+translation = tempConstantTranslation;
+
+// local decl count (amount of groups)
+// this is always 1 because every local is same type and can be defined with one declaration
+currentTranslation = 1;
+GENERATIONSIZE = 8;
+use generate;
+amountOfBytes = amountOfBytes + 1;
+
+// local type count
+currentTranslation = AMOUNTOFLOCALS;
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * constEightGenerator;
+use generate;
+amountOfBytes = amountOfBytes + lebByteAmount;
+
+// twice because all locals are of same type
+
+// because every local is for now a i32 pointer we can just add one i32 (if in the future there are pointers with different sizes this has to be changed (also the local calculation))
+currentTranslation = ITYPE;
+GENERATIONSIZE = 8;
+use generate;
+amountOfBytes = amountOfBytes + 1;
+
+// CONSTANT INITIALISATION
+let currentConstantIndex;
+currentConstantIndex = highestI + 3; // after x0 (x0 is always the first local variable)
+
+currentTranslation = constantDefinitionTranslation;
+GENERATIONSIZE = constantByteCount * constEightGenerator;
+use generate;
+amountOfBytes = amountOfBytes + constantByteCount;
+
+// MAIN
+// START PARSING AND GENERATING
+let blockCounter;
+blockCounter = 0;
+let optimise, generalOptimise;
+let generalOptimiserEnabled;
+
+let optimisationGeneralCounter;
+
+
+generalOptimiserEnabled = 1; // set to 0 to disable MUL-Optimiser
+while amountOfTokens > 0 do
+    // check if it can be optimised
+    generalOptimise = 0;
+    if generalOptimiserEnabled == 1 then
+        // MODULO OPTIMISER
+        optimisationPatternToken = moduloPatternToken;
+        optimisationPatternInteger = moduloPatternInteger;
+        optimisationPatternTokenAmount = moduloPatternTokenAmount;
+        use generalOptimiser;
+        if canOptimised == 1 then
+            TOKENSIZE = totalAmountOfOptimisedTokens;
+            tokenStream = tokenStream >> TOKENSIZE;
+            TOKENSIZE = totalAmountOfOptimisedIntegers;
+            integerStream = integerStream >> TOKENSIZE;
+            amountOfTokens = amountOfTokens - moduloPatternTokenAmount;
+            generalOptimise = 1;
+
+            // add substitution code
+            /*
+                We gonna add the following code to the translation (depends on the catched placeholder bindings):
+                x1 = x2 % x3;
+                x4 = x4 - x4; (x4 = 0)
+                x5 = x5 - x5; (x5 = 0)
+            */
+
+            // x1 = x2 % x3;
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+            currentTranslation = placeholderForXOne; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+            currentTranslation = placeholderForXTwo; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+            currentTranslation = placeholderForXThree; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+            currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+            currentTranslation = MOD; GENERATIONSIZE = 8; use generate;
+
+            amountOfBytes = amountOfBytes + 5;
+
+            // x4 = x4 - x4; (x4 = 0)
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+            currentTranslation = placeholderForXFour; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+            currentTranslation = placeholderForXFour; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+            currentTranslation = placeholderForXFour; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+            currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+            currentTranslation = SUB; GENERATIONSIZE = 8; use generate;
+
+            amountOfBytes = amountOfBytes + 5;
+
+            // x5 = x5 - x5; (x5 = 0)
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+            currentTranslation = placeholderForXFive; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+            currentTranslation = placeholderForXFive; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+            currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+            currentTranslation = placeholderForXFive; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+            currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+            currentTranslation = SUB; GENERATIONSIZE = 8; use generate;
+
+            amountOfBytes = amountOfBytes + 5
+        else
+            // BITSHIFT LEFT OPTIMISER
+            optimisationPatternToken = bitshiftLeftPatternToken;
+            optimisationPatternInteger = bitshiftLeftPatternInteger;
+            optimisationPatternTokenAmount = bitshiftLeftPatternTokenAmount;
+            use generalOptimiser;
+            if canOptimised == 1 then
+                TOKENSIZE = totalAmountOfOptimisedTokens;
+                tokenStream = tokenStream >> TOKENSIZE;
+                TOKENSIZE = totalAmountOfOptimisedIntegers;
+                integerStream = integerStream >> TOKENSIZE;
+                amountOfTokens = amountOfTokens - bitshiftLeftPatternTokenAmount;
+                generalOptimise = 1;
+
+                let constZeroShiftLeftOptimisation, constOneShiftLeftOptimisation; // two constants for substitution needed
+                findConstant = 0;
+                i = 3; // start at 3 because 0, 1 and 2 are already used for x0, temp variable 1 and temp variable 2
+                use findConstant;
+                constZeroShiftLeftOptimisation = highestI + i;
+                findConstant = 1; 
+                i = 3;
+                use findConstant;
+                constOneShiftLeftOptimisation = highestI + i; 
+
+                // add substitution code
+                /*
+                    We gonna add the following code to the translation (depends on the catched placeholder bindings):
+                    x1 = x2 << x3;
+                    x4 = x4 - x4; (x4 = 0)
+                    x6 = x6 - x6; (x6 = 0)
+                    x11 = x1 + 0;
+                    x7 = x7 - x7; (x7 = 0)
+                    x9 = x9 - x9; (x9 = 0)
+                    x10 = x10 + 1;
+                    x5 = x6 + 0
+                */
+
+                // x1 = x2 << x3;
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXOne; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXTwo; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXThree; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                currentTranslation = SHIFTLEFT; GENERATIONSIZE = 8; use generate;
+
+                amountOfBytes = amountOfBytes + 5;
+
+                // x4 = x4 - x4; (x4 = 0)
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXFour; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXFour; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXFour; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                currentTranslation = SUB; GENERATIONSIZE = 8; use generate;
+
+                amountOfBytes = amountOfBytes + 5;
+
+                // x6 = x6 - x6; (x6 = 0)
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXSix; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXSix; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXSix; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                currentTranslation = SUB; GENERATIONSIZE = 8; use generate;
+
+                amountOfBytes = amountOfBytes + 5;
+
+                // x11 = x1 + 0;
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXEleven; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXOne; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = constZeroShiftLeftOptimisation; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                currentTranslation = ADD; GENERATIONSIZE = 8; use generate;
+
+                amountOfBytes = amountOfBytes + 5;
+
+                // x7 = x7 - x7; (x7 = 0)
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXSeven; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXSeven; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXSeven; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                currentTranslation = SUB; GENERATIONSIZE = 8; use generate;
+
+                amountOfBytes = amountOfBytes + 5;
+
+                // x9 = x9 - x9; (x9 = 0)
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXNine; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXNine; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXNine; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                currentTranslation = SUB; GENERATIONSIZE = 8; use generate;
+
+                amountOfBytes = amountOfBytes + 5;
+
+                // x10 = x10 + 1;
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXTen; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXTen; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = constOneShiftLeftOptimisation; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                currentTranslation = ADD; GENERATIONSIZE = 8; use generate;
+
+                amountOfBytes = amountOfBytes + 5;
+
+                // x5 = x6 + 0
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXFive; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = placeholderForXSix; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                currentTranslation = constZeroShiftLeftOptimisation; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                currentTranslation = ADD; GENERATIONSIZE = 8; use generate;
+
+                amountOfBytes = amountOfBytes + 5
+            else 
+                // BITSHIFT RIGHT OPTIMISER
+                optimisationPatternToken = bitshiftRightPatternToken;
+                optimisationPatternInteger = bitshiftRightPatternInteger;
+                optimisationPatternTokenAmount = bitshiftRightPatternTokenAmount;
+                use generalOptimiser;
+                if canOptimised == 1 then
+                    TOKENSIZE = totalAmountOfOptimisedTokens;
+                    tokenStream = tokenStream >> TOKENSIZE;
+                    TOKENSIZE = totalAmountOfOptimisedIntegers;
+                    integerStream = integerStream >> TOKENSIZE;
+                    amountOfTokens = amountOfTokens - bitshiftRightPatternTokenAmount;
+                    generalOptimise = 1;
+
+                    let constZeroBitshiftRightOptimisation, constOneBitshiftRightOptimisation; // two constants for substitution needed
+                    findConstant = 0;
+                    i = 3; // start at 3 because 0, 1 and 2 are already used for x0, temp variable 1 and temp variable 2
+                    use findConstant;
+                    constZeroBitshiftRightOptimisation = highestI + i;
+                    findConstant = 1;
+                    i = 3;
+                    use findConstant;
+                    constOneBitshiftRightOptimisation = highestI + i;
+
+                    // add substitution code
+                    /*
+                        We gonna add the following code to the translation (depends on the catched placeholder bindings):
+                        x10 = x5 >> x3;
+                        x2 = x2 - x2; (x2 = 0)
+                        x4 = x10 + 0;
+                        x6 = x4 + 0;
+                        x10 = x10 - x10; (x10 = 0)
+                        x10 = x10 + 1;
+                        x10 = x10 + 1;
+                        x8 = x4 % x10;
+                        x10 = x4 + 0;
+                        x8 = x8 - x8 (x8 = 0)
+                    */
+
+                    // x10 = x5 >> x3;
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXTen; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXFive; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXThree; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = SHIFTRIGHT; GENERATIONSIZE = 8; use generate;
+
+                    amountOfBytes = amountOfBytes + 5;
+
+                    // x2 = x2 - x2; (x2 = 0)
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXTwo; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXTwo; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXTwo; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = SUB; GENERATIONSIZE = 8; use generate;
+
+                    amountOfBytes = amountOfBytes + 5;
+
+                    // x4 = x10 + 0;
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXFour; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXTen; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = constZeroBitshiftRightOptimisation; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = ADD; GENERATIONSIZE = 8; use generate;
+
+                    amountOfBytes = amountOfBytes + 5;
+
+                    // x6 = x4 + 0;
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXSix; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXFour; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = constZeroBitshiftRightOptimisation; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = ADD; GENERATIONSIZE = 8; use generate;
+
+                    amountOfBytes = amountOfBytes + 5;
+
+                    // x10 = x10 - x10; (x10 = 0)
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXTen; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXTen; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXTen; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = SUB; GENERATIONSIZE = 8; use generate;
+
+                    amountOfBytes = amountOfBytes + 5;
+
+                    // x10 = x10 + 1;
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXTen; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXTen; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = constOneBitshiftRightOptimisation; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = ADD; GENERATIONSIZE = 8; use generate;
+
+                    amountOfBytes = amountOfBytes + 5;
+
+                    // x10 = x10 + 1;
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXTen; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXTen; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = constOneBitshiftRightOptimisation; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = ADD; GENERATIONSIZE = 8; use generate;
+
+                    amountOfBytes = amountOfBytes + 5;
+
+                    // x8 = x4 % x10;
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXEight; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXFour; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXTen; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = MOD; GENERATIONSIZE = 8; use generate;
+
+                    amountOfBytes = amountOfBytes + 5;
+
+                    // x10 = x4 + 0;
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXTen; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXFour; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = constZeroBitshiftRightOptimisation; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = ADD; GENERATIONSIZE = 8; use generate;
+
+                    amountOfBytes = amountOfBytes + 5;
+
+                    // x8 = x8 - x8 (x8 = 0)
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXEight; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXEight; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = placeholderForXEight; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                    currentTranslation = SUB; GENERATIONSIZE = 8; use generate;
+
+                    amountOfBytes = amountOfBytes + 5
+                else
+                    // MUL-Optimiser
+                    optimisationPatternToken = mulPatternToken;
+                    optimisationPatternInteger = mulPatternInteger;
+                    optimisationPatternTokenAmount = mulAmountOfTokens;
+                    use generalOptimiser;
+                    if canOptimised == 1 then
+                        TOKENSIZE = totalAmountOfOptimisedTokens;
+                        tokenStream = tokenStream >> TOKENSIZE;
+                        TOKENSIZE = totalAmountOfOptimisedIntegers;
+                        integerStream = integerStream >> TOKENSIZE;
+                        amountOfTokens = amountOfTokens - mulAmountOfTokens;
+                        generalOptimise = 1;
+
+                        let constZeroMulOptimisation; // one constant for substitution needed
+                        findConstant = 0;
+                        i = 3; // start at 3 because 0, 1 and 2 are already used for x0, temp variable 1 and temp variable 2
+                        use findConstant;
+                        constZeroMulOptimisation = highestI + i;
+
+                        // add substitution code
+                        /*
+                            We gonna add the following code to the translation (depends on the catched placeholder bindings):
+                            x1 = x2 * x3;
+                            x5 = x5 - x5; (x5 = 0)
+                            x7 = x6 + 0;
+                            x6 = x7 + 0
+                        */
+
+                        // x1 = x2 * x3;
+                        currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = placeholderForXOne; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = placeholderForXTwo; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = placeholderForXThree; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = MUL; GENERATIONSIZE = 8; use generate;
+
+                        amountOfBytes = amountOfBytes + 5;
+
+
+                        // x5 = x5 - x5; (x5 = 0)
+                        currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = placeholderForXFive; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = placeholderForXFive; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = placeholderForXFive; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = SUB; GENERATIONSIZE = 8; use generate;
+
+                        amountOfBytes = amountOfBytes + 5;
+
+
+                        // x7 = x6 + 0;
+                        currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = placeholderForXSeven; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = placeholderForXSix; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = constZeroMulOptimisation; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = SUB; GENERATIONSIZE = 8; use generate;
+
+                        amountOfBytes = amountOfBytes + 5;
+
+
+                        // x6 = x7 + 0
+                        currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = placeholderForXSix; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = placeholderForXSeven; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = LOCALGET; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = constZeroMulOptimisation; use encodeLeb; GENERATIONSIZE = lebByteAmount * constEightGenerator; use generate; amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = CALL; GENERATIONSIZE = 8; use generate;
+                        currentTranslation = SUB; GENERATIONSIZE = 8; use generate;
+
+                        amountOfBytes = amountOfBytes + 5
+                    end
+                end
+            end 
+        end
+    end;
+
+    if canOptimised > 0 then 
+        optimisationGeneralCounter = optimisationGeneralCounter + 1
+    end;
+    
+    if generalOptimise == 0 then
+        use getNextToken;
+
+        if currentToken == WHILETOKEN then
+            if integerStream == 1 then
+                error = NOMOREINTEGERS
+            else
+
+                let condition;
+
+                use getNextNumber;
+
+                condition = currentNumber;
+
+                optimise = 0;
+                use twoVarOptimisation;
+
+                if optimise == 1 then
+                    if inductionVariable == 0 then // x0
+                        inductionVariable = highestI
+                    else
+                        inductionVariable = inductionVariable - 1
+                    end;
+                    if assignmentVariable == 0 then // x0
+                        assignmentVariable = highestI
+                    else
+                        assignmentVariable = assignmentVariable - 1
+                    end;
+
+                    if plus == 1 then // addition
+                        currentTranslation = LOCALGET;
+                        GENERATIONSIZE = 8;
+                        use generate;
+
+                        // translate addition
+                        currentTranslation = assignmentVariable;
+                        use encodeLeb;
+                        GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                        use generate;
+                        amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = LOCALGET;
+                        GENERATIONSIZE = 8;
+                        use generate;
+
+                        currentTranslation = assignmentVariable;
+                        use encodeLeb;
+                        GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                        use generate;
+                        amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = LOCALGET;
+                        GENERATIONSIZE = 8;
+                        use generate;
+
+                        currentTranslation = inductionVariable;
+                        use encodeLeb;
+                        GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                        use generate;
+                        amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = CALL;
+                        GENERATIONSIZE = 8;
+                        use generate;
+
+                        currentTranslation = ADD;
+                        GENERATIONSIZE = 8;
+                        use generate;
+
+                        amountOfBytes = amountOfBytes + 5
+                    else // subtraction
+                        // translate subtraction
+                        currentTranslation = LOCALGET;
+                        GENERATIONSIZE = 8;
+                        use generate;
+
+                        // translate addition
+                        currentTranslation = assignmentVariable;
+                        use encodeLeb;
+                        GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                        use generate;
+                        amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = LOCALGET;
+                        GENERATIONSIZE = 8;
+                        use generate;
+
+                        currentTranslation = assignmentVariable;
+                        use encodeLeb;
+                        GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                        use generate;
+                        amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = LOCALGET;
+                        GENERATIONSIZE = 8;
+                        use generate;
+
+                        currentTranslation = inductionVariable;
+                        use encodeLeb;
+                        GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                        use generate;
+                        amountOfBytes = amountOfBytes + lebByteAmount;
+
+                        currentTranslation = CALL;
+                        GENERATIONSIZE = 8;
+                        use generate;
+
+                        currentTranslation = SUB;
+                        GENERATIONSIZE = 8;
+                        use generate;
+
+                        amountOfBytes = amountOfBytes + 5
+                    end;
+
+                    // also set x1 to 0 with x1 = x1 - x1
+                    currentTranslation = LOCALGET;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    // translate addition
+                    currentTranslation = inductionVariable;
+                    use encodeLeb;
+                    GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                    use generate;
+                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = inductionVariable;
+                    use encodeLeb;
+                    GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                    use generate;
+                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = inductionVariable;
+                    use encodeLeb;
+                    GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                    use generate;
+                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = CALL;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = SUB;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    amountOfBytes = amountOfBytes + 5
+
+                    // Remove tokens not necessary because optimisation already happened
+                else
+                    findConstant = 0;
+                    i = 3;  
+                    use findConstant;
+                    if currentNumber == 0 then // x0
+                        condition = highestI
+                    else // x1 - xn
+                        condition = currentNumber - 1
+                    end;
+                    currentTranslation = BLOCK;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = VOID;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = LOOP;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = VOID;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    // add condition check
+                    currentTranslation = LOCALGET;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = condition;
+                    use encodeLeb;
+                    GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                    use generate;
+                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = LOCALGET;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = i + highestI;
+                    use encodeLeb;
+                    GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                    use generate;
+                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                    currentTranslation = CALL;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = ISGT;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = EQZ;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = BRIF;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = 1; // break depth always 1
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    amountOfBytes = amountOfBytes + 11;
+
+                    use push
+                end
+            end
+        else
+            if currentToken == ENDTOKEN then
+                // check top of stack
+                // here its easy because we only have to check if the stack is empty or not
+                if stack == 0 then
+                    error = NOMOREWHILE
+                else
+                    currentTranslation = BR;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    currentTranslation = 0; // break depth always 0 (just break out of loop through the br_if instruction)
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    // add end symbol for LOOP
+                    currentTranslation = FUNCTIONEND;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    // add end symbol for BLOCK
+                    currentTranslation = FUNCTIONEND;
+                    GENERATIONSIZE = 8;
+                    use generate;
+
+                    amountOfBytes = amountOfBytes + 4;
+
+                    use pop
+                end
+            else
+                if currentToken > ENDTOKEN then
+                    // NUMBER ADDITION
+                    if integerStream == 1 then
+                        error = NOMOREINTEGERS
+                    else
+                        let xi, xj, c;
+
+                        use getNextNumber;
+                        xi = currentNumber;
+
+                        if xi == 0 then // x0
+                            xi = highestI
+                        else
+                            xi = currentNumber - 1
+                        end;
+
+                        if integerStream == 1 then
+                            error = NOMOREINTEGERS
+                        else
+                            use getNextNumber;
+                            xj = currentNumber;
+
+                            if xj == 0 then // x0
+                                xj = highestI
+                            else
+                                xj = currentNumber - 1
+                            end;
+
+                            if integerStream == 1 then
+                                error = NOMOREINTEGERS
+                            else
+                                use getNextNumber;
+                                c = currentNumber;
+
+                                findConstant = c;
+                                i = 3; // start at 3 because 0, 1 and 2 are already used for x0, temp variable 1 and temp variable 2
+                                use findConstant;
+
+                                if currentToken == PLUSTOKEN then
+                                    currentTranslation = LOCALGET;
+                                    GENERATIONSIZE = 8;
+                                    use generate;
+
+                                    // translate addition
+                                    currentTranslation = xi;
+                                    use encodeLeb;
+                                    GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                                    use generate;
+                                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                                    currentTranslation = LOCALGET;
+                                    GENERATIONSIZE = 8;
+                                    use generate;
+
+                                    currentTranslation = xj;
+                                    use encodeLeb;
+                                    GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                                    use generate;
+                                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                                    currentTranslation = LOCALGET;
+                                    GENERATIONSIZE = 8;
+                                    use generate;
+
+                                    currentTranslation = i + highestI;
+                                    use encodeLeb;
+                                    GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                                    use generate;
+                                    amountOfBytes = amountOfBytes + lebByteAmount;
+
+                                    currentTranslation = CALL;
+                                    GENERATIONSIZE = 8;
+                                    use generate;
+
+                                    currentTranslation = ADD;
+                                    GENERATIONSIZE = 8;
+                                    use generate;
+
+                                    amountOfBytes = amountOfBytes + 5
+                                else
+                                    if currentToken == MINUSTOKEN then
+                                        // translate subtraction
+                                        currentTranslation = LOCALGET;
+                                        GENERATIONSIZE = 8;
+                                        use generate;
+
+                                        // translate addition
+                                        currentTranslation = xi;
+                                        use encodeLeb;
+                                        GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                                        use generate;
+                                        amountOfBytes = amountOfBytes + lebByteAmount;
+
+                                        currentTranslation = LOCALGET;
+                                        GENERATIONSIZE = 8;
+                                        use generate;
+
+                                        currentTranslation = xj;
+                                        use encodeLeb;
+                                        GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                                        use generate;
+                                        amountOfBytes = amountOfBytes + lebByteAmount;
+
+                                        currentTranslation = LOCALGET;
+                                        GENERATIONSIZE = 8;
+                                        use generate;
+
+                                        currentTranslation = i + highestI;
+                                        use encodeLeb;
+                                        GENERATIONSIZE = lebByteAmount * constEightGenerator;
+                                        use generate;
+                                        amountOfBytes = amountOfBytes + lebByteAmount;
+
+                                        currentTranslation = CALL;
+                                        GENERATIONSIZE = 8;
+                                        use generate;
+
+                                        currentTranslation = SUB;
+                                        GENERATIONSIZE = 8;
+                                        use generate;
+
+                                        amountOfBytes = amountOfBytes + 5
+                                    else
+                                        error = UNRECOGNISEDTOKEN
+                                    end
+                                end
+                            end
+                        end
+                    end
+                else
+                    error = UNREACHABLE // this should never happen
+                end
+            end
+        end;
+
+        if error != 0 then
+            amountOfTokens = 0 // left the loop earlier
+        end
+    end
+end;
+
+
+// ******** CODE SECTION PART 2 ********
+// always return x0
+let zeroIndex;
+zeroIndex = highestI;
+currentTranslation = LOCALGET;
+GENERATIONSIZE = 8;
+use generate;
+amountOfBytes = amountOfBytes + 1;
+currentTranslation = zeroIndex;
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * constEightGenerator;
+use generate;
+amountOfBytes = amountOfBytes + lebByteAmount;
+codeTemp = translation;
+translation = currentTranslationTemp;
+
+// add code section to translation
+currentTranslation = CODEID;
+GENERATIONSIZE = 8;
+use generate;
+
+// calculate function size
+currentTranslation = amountOfBytes + 1; // amount of bytes in the code section (easy because just one function exists) + 1 (for the function end symbol)
+use encodeLeb;
+currentTranslationOne = currentTranslation;
+generationSizeOne = lebByteAmount * constEightGenerator;
+generationSizeTwo = amountOfBytes + lebByteAmount;
+
+// section size
+currentTranslation = generationSizeTwo + 2; // + 2 because of amount of functions and end symbol
+use encodeLeb;
+GENERATIONSIZE = lebByteAmount * constEightGenerator;
+use generate;
+
+// set amount of functions (this is always 0x01 for main function)
+currentTranslation = 1;
+GENERATIONSIZE = 8;
+use generate;
+
+// set function size
+currentTranslation = currentTranslationOne;
+GENERATIONSIZE = generationSizeOne;
+use generate;
+
+// add code section to translation
+currentTranslation = codeTemp;
+GENERATIONSIZE = amountOfBytes * constEightGenerator;
+use generate;
+
+// add end symbol
+currentTranslation = FUNCTIONEND;
+GENERATIONSIZE = 8;
+use generate;
+
+if stack != 0 then
+    error = NOMOREEND
+else
+    if integerStream != 1 then
+        error = TOMANYINTEGERS
+    end
+end;
+
+// error = print // for testing
+
+if error == 0 then
+    x0 = translation
+else
+    x0 = error
+end

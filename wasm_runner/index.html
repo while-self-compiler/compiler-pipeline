@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+
+<script type="module">
+  async function init() {
+    const { instance } = await WebAssembly.instantiateStreaming(
+      fetch("./bigint_lib.wasm")
+    );
+
+    // Run the function, passing the starting address and length.
+    console.log(instance.exports.main());
+  }
+  init();
+</script>

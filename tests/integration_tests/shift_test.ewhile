@@ -1,0 +1,17 @@
+let shiftCounter, startValue, shift;
+
+startValue = 42;
+x0 = startValue;
+shift = 8;
+
+shiftCounter = 50000;
+while shiftCounter > 0 do
+    x0 = x0 << shift;
+    shiftCounter = shiftCounter - 1
+end;
+
+shiftCounter = 49999;
+while shiftCounter > 0 do
+    x0 = x0 >> shift;
+    shiftCounter = shiftCounter - 1
+end

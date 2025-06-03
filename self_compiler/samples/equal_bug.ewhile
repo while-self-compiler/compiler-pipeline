@@ -1,0 +1,38 @@
+
+let integerStream, integerOffset, word, wordLen, token, wordWhile, wordEnd, wordX, tWhile, tPlus, tMinus, tEnd;
+let isFirst, tempNum, modulo, threeBitNum, shift, numTokens, numLeng, num;
+
+num = 22;
+isFirst = 0;
+tempNum = num;
+numTokens = 0;
+numLeng = 0;
+if tempNum == 0 then
+    // Special case for 0
+    threeBitNum = 0;
+    shift = 1;
+    threeBitNum = threeBitNum << shift;
+    threeBitNum = threeBitNum + isFirst;
+    shift = 4;
+    numTokens = numTokens << shift;
+    numTokens = numTokens + threeBitNum;
+    numLeng = numLeng + 4
+else
+    while tempNum > 0 do
+        modulo = 8;
+        threeBitNum = tempNum % modulo;
+        shift = 3; 
+        tempNum = tempNum >> shift;
+        shift = 1;
+        threeBitNum = threeBitNum << shift;
+        threeBitNum = threeBitNum + isFirst;
+        if 1 > isFirst  then
+            isFirst = 1
+        end;
+        shift = 4;
+        numTokens = numTokens << shift;
+        numTokens = numTokens + threeBitNum;
+        numLeng = numLeng + 4
+    end
+end;
+x0 = isFirst

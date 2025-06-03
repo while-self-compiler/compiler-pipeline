@@ -1,0 +1,11 @@
+let test;
+
+test = 10;
+
+while test != 0 do
+    echo test;
+
+    test = test - 1
+end;
+
+x0 = test

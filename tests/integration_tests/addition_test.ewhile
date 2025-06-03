@@ -1,0 +1,14 @@
+let addCounter, startValue, operand, modValue;
+
+startValue = 17;
+x0 = startValue;
+operand = 17;
+modValue = 4294967296;
+
+addCounter = 10000000;
+while addCounter > 0 do
+    x0 = x0 + operand;
+    addCounter = addCounter - 1
+end;
+
+x0 = x0 % modValue

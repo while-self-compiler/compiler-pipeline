@@ -1,0 +1,6 @@
+annotated-types==0.7.0
+antlr4-python3-runtime==4.13.2
+antlr4-tools==0.2.1
+cachetools==5.5.2
+colorama==0.4.6
+wabt==0.1.2

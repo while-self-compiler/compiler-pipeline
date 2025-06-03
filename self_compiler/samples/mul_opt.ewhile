@@ -1,0 +1,7 @@
+let assign, factOne, factTwo;
+factOne = 5;
+factTwo = 3;
+
+assign = factOne * factTwo;
+
+x0 = assign

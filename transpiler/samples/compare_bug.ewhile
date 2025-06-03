@@ -1,0 +1,8 @@
+let word, wordWhile;
+
+// DO ISCH DE WURM DRIN!
+word = 2832354346532;
+wordWhile = 2832354346534;
+if word == wordWhile then
+    x0 = 2
+end

@@ -1,0 +1,19 @@
+x4 = x2 + 0; / temp variable (it resets to 0 automatically)
+x5 = x1 + 0; / temp variable (state gets changed after bit shift)
+
+while x4 > 0 do
+    x8 = x9 + 0; / temo variable (state gets changed after bit shift)
+    x6 = x5 + 0; / temp variable (state gets changed after bit shift)
+    x7 = x6 - 1; / temp variable (it resets to 0 automatically)
+    
+    while x7 > 0 do
+         x6 = x6 - 2; 
+         x8 = x8 + 1;    
+         x7 = x6 - 1     
+    end;
+    
+    x5 = x8 + 0;  
+    x4 = x4 - 1  
+end;
+
+x0 = x5 + 0   

@@ -1,0 +1,26 @@
+
+/***********************************************
+/ E-WHILE Transpiler: If Statement
+/ IF Condition THEN
+/   Statement
+/ END
+
+/ {{g}} is the global 0 constant
+
+[0] / gives condition value in {{0}}
+
+{{1}} = {{g}} + 0; / temp variable: assume condition is false
+{{2}} = {{0}} + 0; / compute condition value
+
+while {{2}} > 0 do 
+    {{1}} = {{g}} + 1; / if condition is true (> 0), enable the THEN branch
+    {{2}} = {{g}} + 0  / stop loop
+end;
+
+/ THEN (runs only if {{1}} == 1)
+{{3}} = {{1}} + 0; / temporary variable to control execution
+while {{3}} > 0 do
+    [1];
+    {{3}} = {{g}} - 0 / ensure the loop only runs once
+end
+/***********************************************
