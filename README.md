@@ -24,7 +24,6 @@ A Compiler to compile a theoretical minimal protolanguage called WHILE to WebAss
       - [Semantics](#semantics)
     - [E-WHILE (Extended WHILE)](#e-while-extended-while)
     - [WHILE for debugging](#while-for-debugging)
-  - [VSCode Extension](#vscode-extension)
   - [Self-Compiler](#self-compiler)
   - [3-Pass-Bootstrapping-Test](#3-pass-bootstrapping-test)
   - [License](#license)
@@ -265,12 +264,6 @@ In WHILE, you can also use Comments like in E-WHILE:
 this is a multi-line comment 
 */
 ```
-
-## VSCode Extension
-There is a VSCode extension for E-WHILE and WHILE language support. It provides syntax highlighting, code formatting, and other features. You can find it in the the [VSCode Extension Readme](vscode_extension/README.md).
-
-Here is a screenshot of the extension in action (E-WHILE example):
-![VSCode Extension](./docs/VSCode_EWHILE_Syntax_Highlighting.png)
 
 ## Self-Compiler
 The self-compiler is a WHILE to WASM compiler that is written in E-WHILE. It consists of two main components: the lexer and the generator. For more information, see the [Self-Compiler Readme](self_compiler/README.md).
