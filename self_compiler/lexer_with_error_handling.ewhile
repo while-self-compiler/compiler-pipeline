@@ -1,0 +1,178 @@
+// SEARCHABLE SNIPPETS
+let wordWhile, wordX, wordEnd, wordPlus, wordMinus, wordEqual, wordDo, wordSpace, wordNewline, wordTab, wordSemikolon;
+wordWhile = 24567802623238232; // "WHILE X" 7
+wordX = 88; // "X" 1
+wordEnd = 4542020; // "END" 3
+wordPlus = 2108192; // " + " 3
+wordMinus = 2108704; // " - " 3
+wordEqual = 540876888; // " = X" 4
+wordDo = 9075507222037583; // " > 0 DO" 7
+wordSpace = 32; // " " 1
+wordNewline = 10; // "\n" 1
+wordTab = 9; // "\t" 1
+wordSemikolon = 59; // ";" 1
+
+// TOKEN
+let tWhile, tPlus, tMinus, tEnd;
+tWhile = 0;
+tEnd = 1;
+tPlus = 2;
+tMinus = 3;
+
+// ERROR HANDLING
+let MISSINGSEMIKOLON, INVALIDTOKEN, TOOMANYSEMIKOLON;
+MISSINGSEMIKOLON = 7;
+INVALIDTOKEN = 8;
+TOOMANYSEMIKOLON = 9;
+
+constantOffset = 0;
+numLeng = 4;
+constantOffset = constantOffset + numLeng;
+
+highestI = 130;
+
+let expectSemi;
+expectSemi = 0;
+
+while x1 > 0 do
+    // MAIN LEXER LOOP
+    tokenFound = 0;
+
+    use jumpWhitespace;
+
+    // CHECK WHILE
+    wordLen = 7;
+    use getWord;
+    if word == wordWhile then
+        if expectSemi == 1 then
+            if error == 0 then
+                error = MISSINGSEMIKOLON;
+                use errorLineNum
+            end
+        end;
+        tokenFound = 1;
+        use delWord;
+        use parseNumber;
+        use updateHighestI;
+        use numOut;
+        wordLen = 7;
+        use getWord;
+        if word != wordDo then
+            if error == 0 then
+                error = INVALIDTOKEN;
+                use errorLineNum
+            end
+        end;
+        use delWord;
+        token = tWhile;
+        use pushToken;
+        expectSemi = 0
+    end;
+
+    // CHECK END
+    wordLen = 3;
+    use getWord;
+    if word == wordEnd then
+        if expectSemi == 0 then
+            if error == 0 then
+                error = MISSINGSEMIKOLON;
+                use errorLineNum
+            end
+        end;
+        tokenFound = 1;
+        use delWord;
+        token = tEnd;
+        use pushToken;
+        expectSemi = 1
+    end;
+
+    // CHECK X
+    wordLen = 1;
+    use getWord;
+    if word == wordX then
+        if expectSemi == 1 then
+            if error == 0 then
+                error = MISSINGSEMIKOLON;
+                use errorLineNum
+            end
+        end;
+        tokenFound = 1;
+        use delWord;
+        use parseNumber;
+        use updateHighestI;
+        use numOut;
+        wordLen = 4;
+        use getWord;
+        if word != wordEqual then
+            if error == 0 then
+                error = INVALIDTOKEN;
+                use errorLineNum
+            end
+        end;
+        use delWord;
+        use parseNumber;
+        use updateHighestI;
+        use numOut;
+        wordLen = 3;
+        use getWord;
+        token = 0;
+        if word == wordPlus then
+            token = tPlus
+        end;
+        if word == wordMinus then
+            token = tMinus
+        end;
+        if token == 0 then
+            if error == 0 then
+                error = INVALIDTOKEN;
+                use errorLineNum
+            end
+        end;
+        use pushToken;
+        use delWord;
+        use parseNumber;
+        use numOut;
+        use constOut;
+        expectSemi = 1
+    end;
+
+    // SEMIKOLON
+    if word == wordSemikolon then
+        if expectSemi == 0 then
+            if error == 0 then
+                error = TOOMANYSEMIKOLON;
+                use errorLineNum
+            end
+        end;
+        tokenFound = 1;
+        use delWord;
+        expectSemi = 0
+    end;
+
+    // CHECK IF TOKEN FOUND
+    if tokenFound == 0 then
+        if error == 0 then
+            error = INVALIDTOKEN;
+            use errorLineNum
+        end
+    end
+end;
+
+if expectSemi == 0 then
+    if error == 0 then
+        error = TOOMANYSEMIKOLON;
+        use errorLineNum
+    end
+end;
+
+
+// ADD MAGIC NUMBERS
+num = 1;
+shift = integerOffset;
+num = num << shift;
+integerStream = integerStream + num;
+
+num = 1;
+shift = constantOffset;
+num = num << shift;
+constantPool = constantPool + num;
