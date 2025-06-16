@@ -34,9 +34,9 @@ end`;
       outputArea.textContent = 
         "Compiling WHILE code...\n\n" +
         "Original code:\n" + code + "\n\n" +
-        "Uppercase code:\n" + uppercaseCode + "\n\n" +
-        "ASCII Hex representation:\n" + hexString + "\n\n" +
-        "ASCII BigInt:\n" + asciiBigInt.toString() + "\n\n" +
+        "Uppercase code:\n" + truncateString(uppercaseCode) + "\n\n" +
+        "ASCII Hex representation:\n" + truncateString(hexString) + "\n\n" +
+        "ASCII BigInt:\n" + truncateString(asciiBigInt.toString()) + "\n\n" +
         "Byte count:\n" + byteCount + "\n\n" +
         "Running self_compiler.wasm...";
       outputArea.style.color = "#2196f3";
@@ -90,9 +90,9 @@ end`;
       outputArea.textContent = 
         "Compilation completed! Running compiled WASM...\n\n" +
         "Original code:\n" + code + "\n\n" +
-        "Self compiler result (decimal):\n" + result + "\n\n" +
-        "Self compiler result (hex):\n" + hexResult + "\n\n" +
-        "WASM bytes (with 00 prefix):\n" + wasmHex + "\n\n" +
+        "Self compiler result (decimal):\n" + truncateString(result.toString()) + "\n\n" +
+        "Self compiler result (hex):\n" + truncateString(hexResult) + "\n\n" +
+        "WASM bytes (with 00 prefix):\n" + truncateString(wasmHex) + "\n\n" +
         "Executing compiled WASM...";
       outputArea.style.color = "#2196f3";
       
@@ -102,10 +102,10 @@ end`;
       outputArea.textContent = 
         "Full compilation and execution completed!\n\n" +
         "Original WHILE code:\n" + code + "\n\n" +
-        "Self compiler output (decimal):\n" + result + "\n\n" +
-        "Self compiler output (hex):\n" + hexResult + "\n\n" +
-        "WASM bytes:\n" + wasmHex + "\n\n" +
-        "Final execution result:\n" + finalResult;
+        "Self compiler output (decimal):\n" + truncateString(result.toString()) + "\n\n" +
+        "Self compiler output (hex):\n" + truncateString(hexResult) + "\n\n" +
+        "WASM bytes:\n" + truncateString(wasmHex) + "\n\n" +
+        "Final execution result:\n" + truncateString(finalResult.toString());
       outputArea.style.color = "#4caf50";
 
     } catch (error) {
@@ -154,7 +154,7 @@ end`;
       // Run the WASM using our runner function with parameters
       const result = await runWasm(wasmBytes, parameters);
       
-      outputArea.textContent = `WASM execution completed!\nInput: "${inputCode}"\nInput as BigInt: ${inputBigInt}\nByte count: ${inputByteCount}\nResult: ${result}`;
+      outputArea.textContent = `WASM execution completed!\nInput: "${inputCode}"\nInput as BigInt: ${truncateString(inputBigInt.toString())}\nByte count: ${inputByteCount}\nResult: ${truncateString(result.toString())}`;
       outputArea.style.color = "#4caf50";
 
       // Add visual feedback
@@ -177,3 +177,11 @@ end`;
     codeEditor.style.height = codeEditor.scrollHeight + "px";
   });
 });
+
+// Helper function to truncate long strings for display
+function truncateString(str, maxLength = 50) {
+  if (str.length <= maxLength) {
+    return str;
+  }
+  return str.substring(0, maxLength) + "...";
+}
