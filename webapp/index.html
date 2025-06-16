@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WHILE Code Compiler</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>WHILE Code Compiler</h1>
+      </header>
+      <main>
+        <section class="content">
+          <p>
+            Write your WHILE code in the editor below and click the Compile
+            button.
+          </p>
+
+          <div class="editor-container">
+            <textarea
+              id="codeEditor"
+              placeholder="Enter your WHILE code here..."
+              spellcheck="false"
+            ></textarea>
+          </div>
+
+          <div class="button-container">
+            <button id="compileBtn">Compile</button>
+          </div>
+
+          <div class="output-container">
+            <h2>Output</h2>
+            <div id="outputArea">Compilation results will appear here...</div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>
