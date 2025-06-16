@@ -1,7 +1,7 @@
 // Browser script to load and run WASM modules with GMP-based bigint library
 // Simplified version with basic functionality only
 
-async function runWasm(wasmBytes) {
+async function runWasm(wasmBytes, parameters = {}) {
   try {
     // Load the GMP-based library (emscripten generated)
     const gmpModule = await GmpModule();
@@ -34,7 +34,45 @@ async function runWasm(wasmBytes) {
     const mainFunction = wasmModule.instance.exports.main;
     if (typeof mainFunction === 'function') {
       console.log("Calling WASM main function...");
-      const result = mainFunction();
+      
+      const paramCount = mainFunction.length;
+      const argsArray = new Array(paramCount).fill(0);
+
+      // Process input parameters
+      for (const [key, value] of Object.entries(parameters)) {
+        const index = parseInt(key.replace("n", ""), 10);
+
+        if (isNaN(index)) {
+          console.error(`Warning: Invalid argument key format: ${key}`);
+          continue;
+        }
+
+        if (index > paramCount) {
+          console.error(
+            `RuntimeError: Argument index ${index} out of bounds for function (expected max index ${paramCount})`
+          );
+          return null;
+        }
+
+        const ptr = writeBigInt(gmpModule, value);
+        if (ptr === 0) {
+          console.error(`RuntimeError: Failed to create bigint for ${key}=${value}`);
+          return null;
+        }
+        
+        argsArray[index - 1] = ptr;
+      }
+
+      // Fill remaining positions with zero bigints
+      for (let i = 0; i < argsArray.length; i++) {
+        if (argsArray[i] === 0) {
+          argsArray[i] = gmpModule._create_bigint();
+        }
+      }
+
+      console.log("Calling main function with args:", argsArray);
+      
+      const result = mainFunction(...argsArray);
       console.log("WASM execution completed");
       
       // If result is a pointer, try to read it as a BigInt
@@ -75,4 +113,17 @@ function readBigInt(gmpModule, ptr) {
     shift += 32;
   }
   return value;
+}
+
+// Helper function to write BigInt values to GMP pointers
+function writeBigInt(gmpModule, value) {
+  let bigValue = BigInt(value);
+  const ptr = gmpModule._create_bigint();
+  while (bigValue > 0n) {
+    // Push 32 bits of the bigint into the GMP bigint
+    const block = Number(bigValue & 0xFFFFFFFFn);
+    gmpModule._push_u32_to_bigint(block);
+    bigValue >>= 32n; // Shift right by 32 bits
+  }
+  return ptr;
 }

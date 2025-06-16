@@ -53,6 +53,17 @@ end`;
       outputArea.textContent = "Loading and running example.wasm...";
       outputArea.style.color = "#2196f3";
 
+      // Get the input value and convert to BigInt
+      const inputCode = codeEditor.value.trim();
+      const inputBigInt = textToAsciiBigInt(inputCode);
+      
+      // Create parameters object with the input value as n1
+      const parameters = {
+        "n1": inputBigInt
+      };
+
+      console.log(`Running WASM with input: "${inputCode}" -> BigInt: ${inputBigInt}`);
+
       // Fetch the WASM file
       const response = await fetch("content/example.wasm");
       if (!response.ok) {
@@ -61,10 +72,10 @@ end`;
       
       const wasmBytes = await response.arrayBuffer();
       
-      // Run the WASM using our runner function
-      const result = await runWasm(wasmBytes);
+      // Run the WASM using our runner function with parameters
+      const result = await runWasm(wasmBytes, parameters);
       
-      outputArea.textContent = `WASM execution completed!\nResult: ${result}`;
+      outputArea.textContent = `WASM execution completed!\nInput: "${inputCode}"\nInput as BigInt: ${inputBigInt}\nResult: ${result}`;
       outputArea.style.color = "#4caf50";
 
       // Add visual feedback
