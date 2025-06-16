@@ -1,6 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
   const compileBtn = document.getElementById("compileBtn");
-  const runWasmBtn = document.getElementById("runWasmBtn");
   const codeEditor = document.getElementById("codeEditor");
   const outputArea = document.getElementById("outputArea");
 
@@ -122,52 +121,6 @@ end`;
     setTimeout(() => {
       compileBtn.classList.remove("clicked");
     }, 200);
-  });
-
-  // Add event listener for run WASM button
-  runWasmBtn.addEventListener("click", async () => {
-    try {
-      outputArea.textContent = "Loading and running example.wasm...";
-      outputArea.style.color = "#2196f3";
-
-      // Get the input value and convert to BigInt
-      const inputCode = codeEditor.value.trim();
-      const asciiResult = textToAsciiBigInt(inputCode);
-      const inputBigInt = asciiResult.bigint;
-      const inputByteCount = asciiResult.byteCount;
-      
-      // Create parameters object with the input value as n1
-      const parameters = {
-        "n1": inputBigInt
-      };
-
-      console.log(`Running WASM with input: "${inputCode}" -> BigInt: ${inputBigInt}, Bytes: ${inputByteCount}`);
-
-      // Fetch the WASM file
-      const response = await fetch("content/example.wasm");
-      if (!response.ok) {
-        throw new Error(`Failed to load WASM file: ${response.status}`);
-      }
-      
-      const wasmBytes = await response.arrayBuffer();
-      
-      // Run the WASM using our runner function with parameters
-      const result = await runWasm(wasmBytes, parameters);
-      
-      outputArea.textContent = `WASM execution completed!\nInput: "${inputCode}"\nInput as BigInt: ${truncateString(inputBigInt.toString())}\nByte count: ${inputByteCount}\nResult: ${truncateString(result.toString())}`;
-      outputArea.style.color = "#4caf50";
-
-      // Add visual feedback
-      runWasmBtn.classList.add("clicked");
-      setTimeout(() => {
-        runWasmBtn.classList.remove("clicked");
-      }, 200);
-      
-    } catch (error) {
-      outputArea.textContent = `Error running WASM: ${error.message}`;
-      outputArea.style.color = "#ff6b6b";
-      console.error("WASM execution error:", error);
-    }
   });
 
   // Add auto-resize functionality for the code editor

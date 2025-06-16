@@ -1,5 +1,0 @@
-x1 = x1 + 7;
-while x1 > 0 do
-    x0 = x0 + 1;
-    x1 = x1 - 1
-end
