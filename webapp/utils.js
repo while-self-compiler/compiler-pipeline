@@ -1,14 +1,23 @@
 /**
  * Converts text to uppercase and returns the ASCII representation as a BigInt
  * @param {string} text - The input text to convert
- * @returns {bigint} - The ASCII representation as a BigInt
+ * @returns {object} - Object with bigint and byteCount properties
  */
 function textToAsciiBigInt(text) {
   // Use the helper function to get the hex string
   const hexString = textToAsciiHex(text);
   
+  // Convert text to uppercase to get the byte count
+  const uppercaseText = text.toUpperCase();
+  const byteCount = uppercaseText.length;
+  
   // Convert the concatenated hex string to a BigInt
-  return BigInt("0x" + hexString);
+  const bigint = BigInt("0x" + hexString);
+  
+  return {
+    bigint: bigint,
+    byteCount: byteCount
+  };
 }
 
 /**
