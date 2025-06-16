@@ -6,8 +6,6 @@ async function runWasm(wasmBytes) {
     // Load the GMP-based library (emscripten generated)
     const gmpModule = await GmpModule();
 
-    // Create shared memory
-    const memory = new WebAssembly.Memory({ initial: 4000 });
 
     // Load and instantiate the WebAssembly module
     const wasmModule = await WebAssembly.instantiate(wasmBytes, {
@@ -29,8 +27,6 @@ async function runWasm(wasmBytes) {
           const output = readBigInt(gmpModule, ptr);
           console.log(`printf: ${output}`);
         },
-        // Share memory between modules
-        memory: memory,
       },
     });
 
