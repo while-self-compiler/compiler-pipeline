@@ -14,6 +14,8 @@ body {
 #settings-container {
     display: none;
     background-color: white;
+    border-radius: 4px;
+    padding: 20px;
 }
 
 .container {
@@ -130,6 +132,10 @@ button:hover {
   white-space: nowrap;
   color: #eee;
   user-select: none;
+}
+
+form label {
+      color: black;
 }
 
 /* Inputs */
@@ -311,9 +317,6 @@ footer {
     height: 22px;
 }
 
-.settings-content-iteration form, .settings-content-iteration input, .settings-content-iteration label, .settings-content-iteration div {
-    display: flex;
-}
 .settings-content-iteration form {
     flex-direction: column;
 }
