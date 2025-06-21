@@ -1,0 +1,406 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+}
+
+#settings-container {
+    display: none;
+    background-color: white;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #252525;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    min-height: 100vh;
+}
+
+header {
+    text-align: center;
+    padding: 20px 0;
+    border-bottom: 1px solid #444;
+    margin-bottom: 20px;
+}
+
+h1, h2 {
+    color: #ffffff;
+}
+
+h1 {
+    margin-bottom: 10px;
+    font-size: 2.8em;
+}
+
+h2 {
+    margin: 20px 0 10px;
+    text-align: left;
+}
+
+.content {
+    padding: 20px;
+}
+
+.content p {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.editor-container {
+    margin-bottom: 20px;
+}
+
+#codeEditor {
+    width: 100%;
+    height: 250px;
+    padding: 15px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 16px;
+    resize: vertical;
+    outline: none;
+}
+
+.button-container {
+    display: flex;
+    justify-content: flex-end;
+    margin: 15px 0;
+}
+
+button {
+    background-color: #58a6ff;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: #3691ff;
+}
+
+.output-container {
+    margin-top: 30px;
+    text-align: left;
+}
+
+#variable-toolbar, #resultbar{
+  display: flex;
+  flex-wrap: nowrap;       /* no wrapping to force horizontal scroll */
+  gap: 10px;               /* space between variable inputs */
+  padding: 5px;
+  background-color: #333;
+  max-height: 50px;        /* fixed max height */
+  height: 50px;            /* fixed height even when empty */
+  overflow-x: auto;        /* horizontal scroll if too wide */
+  overflow-y: auto;        /* vertical scroll if content taller than 50px */
+  align-items: center;
+  box-sizing: border-box;
+  min-width: 100%;         /* full width */
+}
+
+/* Each input group */
+#variable-toolbar > div, #resultbar > div {
+  display: flex;
+  align-items: center;
+  min-width: 120px; /* fixed width */
+  flex-shrink: 0;   /* don’t shrink smaller than min-width */
+}
+
+/* Labels with fixed width for alignment */
+#variable-toolbar label, #resultbar label {
+  width: 40px;
+  margin-right: 6px;
+  white-space: nowrap;
+  color: #eee;
+  user-select: none;
+}
+
+/* Inputs */
+#variable-toolbar input[type="text"] {
+  width: 60px;
+  padding: 2px 4px;
+  box-sizing: border-box;
+  border: 1px solid #555;
+  border-radius: 3px;
+  background: #2d2d2d;
+  color: #eee;
+}
+
+/* When empty: keep height */
+#variable-toolbar:empty, #resultbar:empty {
+  height: 50px;
+}
+
+#outputArea {
+    background-color: #2d2d2d;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 15px;
+    min-height: 120px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    white-space: pre-wrap;
+    color: #d4d4d4;
+    word-wrap: break-word; 
+    overflow-wrap: break-word;
+    max-width: 100%;        
+}
+
+
+.settings-container h2, .settings-container p {
+    color: black;
+}
+
+.pipeline-step {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  border: 1px solid #202020;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 14px;
+  background-color: #343434;
+  position: relative;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.pipeline-step.pending::after {
+  content: '⏳';
+}
+
+.pipeline-step.success::after {
+  content: '✅';
+  color: green;
+}
+
+.pipeline-step.error::after {
+  content: '❌';
+  color: red;
+}
+
+footer {
+    text-align: center;
+    margin-top: 50px;
+    padding-top: 20px;
+    border-top: 1px solid #444;
+    color: #888;
+}
+
+.scrollbar::-webkit-scrollbar-track {
+	background-color: #343434;
+}
+
+.scrollbar::-webkit-scrollbar {
+    height: 8px;
+	width: 4px;
+    border-radius: 4px;
+	background-color: #F5F5F5;
+}
+
+.scrollbar::-webkit-scrollbar-thumb {
+	background-color: #747474;
+    border-radius: 4px;
+	border: 1px solid #555555;
+}
+
+.navigation {
+    height: 40px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    background-color: #2c2c2c;
+    margin: 0px;
+}
+
+.file-navigation {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    margin: 0px;
+}
+.file-navigation button {
+    padding: 10px;
+    width: 150px;
+    border: none;
+    border-radius: 0px;
+    background-color: #252525;
+    margin: 0px;
+}
+#scriptSelect {
+  appearance: none;          
+  -webkit-appearance: none;  
+  -moz-appearance: none;    
+  
+  background-color: #333;
+  color: #ecf0f1;
+  border: 1px solid #545454;
+  border-radius: 4px;
+  padding: 6px 32px 6px 12px; 
+  font-size: 1rem;
+  cursor: pointer;
+  outline: none;
+  min-width: 180px;
+  transition: border-color 0.3s ease;
+  background-image: url('data:image/svg+xml;utf8,<svg fill="%23ecf0f1" height="12" viewBox="0 0 24 24" width="12" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 12px;
+}
+
+#scriptSelect:hover, #scriptSelect:focus {
+  border-color: #9c9c9c;
+  background-color: #333;
+  color: #ffffff;
+}
+
+#scriptSelect option {
+  background-color: #333;
+  cursor: pointer;
+  color: #ecf0f1;
+}
+.file-navigation button, .run-navigation div {
+    cursor: pointer;
+} 
+.file-navigation button:hover {
+    background-color: #888888;
+    cursor: pointer;
+}
+
+.run-navigation {
+    float: left;
+    display: flex;
+    flex-direction: row;
+    margin: 0px;
+    padding: 0px;
+}
+.run-navigation button, .settings-navigation button {
+    width: fit-content;
+    margin: 5px;
+    padding: 0px;
+}
+.run-navigation button img, .settings-navigation button img {
+    width: 20px;
+    height: 20px;
+    align-items: center;
+    justify-content: center;
+    display: flex;
+}
+.run-navigation button, .settings-navigation button  {
+    background-color: transparent;
+}
+#open-settings img:hover, #open-run img:hover, #open-download img:hover, #close-settings img:hover, #open-samples img:hover {
+    width: 22px;
+    height: 22px;
+}
+
+.settings-content-iteration form, .settings-content-iteration input, .settings-content-iteration label, .settings-content-iteration div {
+    display: flex;
+}
+.settings-content-iteration form {
+    flex-direction: column;
+}
+.question-mark {
+    width: 20px;
+    height: 20px;
+    margin: 0px;
+    margin-left: 5px;
+    padding: 0px;
+    cursor: pointer;
+}
+.question-mark:hover {
+    opacity: 0.3;
+}
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 200px;
+    background-color: black;
+    opacity: 0.7;
+    color: #fff;
+    text-align: center;
+    border-radius: 4px;
+    padding: 10px;
+    position: absolute;
+    margin-left: 50px;
+}
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+}
+
+
+/* Syntax highlighting */
+.CodeMirror {
+  background-color: #1e1e1e;
+  color: #eeeeee;
+  font-family: monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 10px;
+}
+
+/* Keywords (while, do, end, macro, use, etc.) */
+.cm-keyword {
+  color: #ff9800; /* orange */
+  font-weight: bold;
+}
+
+/* Comments (//, /* */ */
+.cm-comment {
+  color: #9e9e9e; /* gray */
+  font-style: italic;
+}
+
+/* Numbers (123, etc.) */
+.cm-number {
+  color: #00bcd4; /* cyan */
+}
+
+/* Strings / special vars (e.g., x1, X2 in ewhile) */
+.cm-string {
+  color: #4caf50; /* green */
+  font-weight: bold;
+}
+
+/* Operators (+, -, =, *, etc.) */
+.cm-operator {
+  color: #f44336; /* red */
+}
+
+/* Identifiers / regular variables */
+.cm-variable {
+  color: #2196f3; /* blue */
+}
+
+/* Special variable class used in "while" mode (x1, x2) */
+.cm-variable-2 {
+  color: #8bc34a; /* lime green */
+  font-weight: bold;
+}
+
+/* Optional: line number colors */
+.CodeMirror-gutters {
+  background: #2c2c2c;
+  color: #aaa;
+  border-right: 1px solid #444;
+}

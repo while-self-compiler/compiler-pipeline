@@ -1,45 +1,107 @@
+<!-- local run: http-server . -c-1 and maybe  npm install -g http-server-->
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WHILE Code Compiler</title>
-    <link rel="stylesheet" href="styles.css" />
+    <title>Self-Compiler Demo</title>
+    <link rel="stylesheet" href="./css/styles.css" />
+    <!-- CodeMirror Import -->
+    <link rel="stylesheet" href="libs/codemirror/codemirror.min.css">
+    <link rel="stylesheet" href="libs/codemirror/material.min.css">
+    <script src="libs/codemirror/codemirror.min.js"></script>
+    <script src="libs/codemirror/javascript.min.js"></script>
+    <script src="libs/codemirror/clike.min.js"></script>
+
+    <!-- WABT -->  
+    <script src="https://cdn.jsdelivr.net/npm/wabt@1.0.32/index.min.js"></script>
   </head>
   <body>
     <div class="container">
       <header>
-        <h1>WHILE Code Compiler</h1>
+        <h1>Self-Compiler Demo</h1>
       </header>
-      <main>
+      <main>        
         <section class="content">
-          <p>
-            Write your WHILE code in the editor below and click the Compile
-            button.
-          </p>
-
-          <div class="editor-container">
-            <textarea
-              id="codeEditor"
-              placeholder="Enter your WHILE code here..."
-              spellcheck="false"
-            ></textarea>
+          <div class="editor-container" id="editor-container">
+            <div class="navigation">
+                <div class="file-navigation">
+                    <select id="scriptSelect">
+                      <option value="">Select a script</option>
+                    </select>
+                    <!--
+                    <select id="languageSelect">
+                      <option value="text/x-while">WHILE</option>
+                      <option value="text/x-ewhile">EWHILE</option>
+                    </select>
+                    -->
+                </div>
+                <div class="run-navigation">
+                    <button id="open-settings"><img src="img/settings_icon.png"></button>
+                    <button id="open-run"><img src="img/play_icon.png"></button>
+                </div>
+            </div>
+            <div class="variable-toolbar scrollbar" id="variable-toolbar"></div>
+            <textarea class="scrollbar" id="codeEditor"></textarea>
+            <div class="resultbar scrollbar" id="resultbar"></div>
           </div>
 
-          <div class="button-container">
-            <button id="compileBtn">Compile</button>
+          <div class="settings-container" id="settings-container">
+            <div class="settings-navigation">
+                <button id="close-settings"><img src="img/code_icon.png"></button>
+            </div>
+            <div class="settings-content">
+                <div class="settings-content-iteration">
+                    <h2>Self-Compiler Iteration</h2>
+                    <p>Choose the iteration of the self-compiler you want to use:</p>
+                    <form id="iteration-form">
+                      <div id="iteration-container"></div>
+                    </form>
+                </div>
+            </div>
+            <div class="settings-content-flags">
+                <h2>Flags</h2>
+                <h3>Output</h3>
+                <form>
+                    <input checked type="checkbox" id="output-wat" name="output-wat" value="wat">
+                    <label for="output-wat">Print WAT code</label><br>
+                </form>
+                <!--<h3>Format</h3>
+                <form>
+                    <input checked type="checkbox" id="output-parsetree" name="output-parsetree" value="parsetree">
+                    <label for="output-parsetree">Parsetree</label><br>
+                    <input checked type="checkbox" id="output-tokentable" name="output-tokentable" value="tokentable">
+                    <label for="output-tokentable">Tokentable</label><br>
+                    <input checked type="checkbox" id="output-validation" name="output-validation" value="validation">
+                    <label for="output-validation">Validation</label><br>
+                </form>
+                <h3>Generated Code</h3>
+                <form>
+                    <lable>Select the output language:</lable>
+                    <select id="output-language" name="output-language">
+                        <option value="Java14">Java (> 14)</option>
+                    </select>
+                </form>-->
+            </div>  
           </div>
 
-          <div class="output-container">
-            <h2>Output</h2>
+          <div class="output-container" id="output-container">
+            <div id="pipeline-status"></div>
+            <h2>Detailed Output</h2>
             <div id="outputArea">Compilation results will appear here...</div>
           </div>
         </section>
       </main>
+      <footer>
+        <p>For more information, visit the <a href="https://github.com/while-self-compiler/compiler-pipeline" target="_blank">GitHub repository</a>.</p>
+      </footer>
     </div>
     <script src="content/gmp_lib.js"></script>
-    <script src="utils.js"></script>
-    <script src="wasm_runner.js"></script>
-    <script src="script.js"></script>
+    <script src="js/utils/utils.js"></script>
+    <script src="js/utils/wasm_runner.js"></script>
+    <script src="js/index.js"></script>
+    <script src="js/editor/while.js"></script>
+    <script src="js/editor/ewhile.js"></script>
   </body>
 </html>
