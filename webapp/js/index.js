@@ -402,7 +402,7 @@ function formatDuration(ms) {
   const millis = Math.floor(totalMs % 1000);
   const pad = (n, width=2) => String(n).padStart(width, '0');
   const padMs = String(millis).padStart(3, '0');
-  return `${pad(minutes)}:${pad(seconds)}.${padMs} s`;
+  return `${pad(minutes)}:${pad(seconds)}.${padMs} min`;
 }
 
 function startTimer(id) {
