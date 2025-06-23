@@ -264,6 +264,44 @@ document.addEventListener("DOMContentLoaded", () => {
         throw err;  
       }      
       const resultBigInt = BigInt(result);
+      
+      // Check for error codes from IT4 compiler with error handling
+      if (selectedCompiler.id === 'iteration-it4') {
+        const errorCode = Number(resultBigInt & 0xFFn); // Get lowest byte
+        if (errorCode >= 1 && errorCode <= 9) {
+          const lineNumber = Number(resultBigInt >> 8n); // Shift right by 8 bits to get line number
+          
+          const errorMessages = {
+            1: "UNRECOGNISEDTOKEN",
+            2: "NOMOREINTEGERS", 
+            3: "NOMOREWHILE",
+            4: "NOMOREEND",
+            5: "UNREACHABLE",
+            6: "TOMANYINTEGERS",
+            7: "MISSINGSEMIKOLON",
+            8: "INVALIDTOKEN",
+            9: "TOOMANYSEMIKOLON"
+          };
+          
+          const errorMessage = errorMessages[errorCode] || `UNKNOWN_ERROR_${errorCode}`;
+          
+          outputArea.textContent = 
+            `Compilation Error (${selectedCompiler.label})!\n\n` +
+            `Error: ${errorMessage}\n` +
+            `Line: ${lineNumber}\n` +
+            `Error Code: ${errorCode}\n\n` +
+            "Original code:\n" + code + "\n\n" +
+            `Self compiler result (decimal): ${result.toString()}\n` +
+            `Error code (lowest byte): ${errorCode}\n` +
+            `Line number (result >> 8): ${lineNumber}`;
+          outputArea.style.color = "#ff6b6b";
+          
+          updatePipelineStep('execute', 'error');
+          updatePipelineStep('executeCompiledFile', 'error');
+          return;
+        }
+      }
+      
       let hexResult = resultBigInt.toString(16);
       
       if (hexResult.length % 2 !== 0) {
