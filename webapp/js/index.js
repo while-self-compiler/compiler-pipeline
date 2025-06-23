@@ -183,11 +183,16 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   compileBtn.addEventListener("click", async () => {
-    renderPipelineStatus([
+    const steps = [
       { id: 'run', label: 'Prepare and encode input', status: 'pending' },
-      { id: 'selfCompile', label: 'Compile with self compiler', status: 'pending' },
-      { id: 'execute', label: 'Execute compiled WASM file', status: 'pending' }
-    ]);
+      { id: 'selfCompile', label: 'Load self compiler', status: 'pending' },
+      { id: 'execute', label: 'Compile with self compiler', status: 'pending' }
+    ];
+    renderPipelineStatus(steps);
+
+    steps.forEach(step => {
+      startTimer(step.id);
+    });
 
     const code = codeEditor.getValue().trim();
 
@@ -361,23 +366,78 @@ function truncateString(str, maxLength = 50) {
   return str.substring(0, maxLength) + "...";
 }
 
+const stepTimers = {}; // { startTime: number, intervalId: number }
+
 function renderPipelineStatus(steps) {
   const container = document.getElementById("pipeline-status");
   container.innerHTML = ''; // Clear previous
 
   steps.forEach(step => {
     const div = document.createElement("div");
-    div.className = `pipeline-step ${step.status}`;
-    div.textContent = step.label;
-    div.id = `pipeline-${step.id}`;
-    container.appendChild(div);
+      div.className = `pipeline-step ${step.status}`;
+      div.id = `pipeline-${step.id}`;
+
+      // Label-Text
+      const labelSpan = document.createElement("span");
+      labelSpan.textContent = step.label;
+      div.appendChild(labelSpan);
+
+      // Timer-Span, initial 00:00.000
+      const timerSpan = document.createElement("span");
+      timerSpan.id = `timer-${step.id}`;
+      timerSpan.style.marginLeft = '8px';
+      timerSpan.style.fontFamily = 'monospace';
+      timerSpan.style.fontSize = '0.9em';
+      timerSpan.textContent = "00:00.000";
+      div.appendChild(timerSpan);
+
+      container.appendChild(div);
   });
+}
+
+function formatDuration(ms) {
+  const totalMs = Math.max(0, ms);
+  const minutes = Math.floor(totalMs / 60000);
+  const seconds = Math.floor((totalMs % 60000) / 1000);
+  const millis = Math.floor(totalMs % 1000);
+  const pad = (n, width=2) => String(n).padStart(width, '0');
+  const padMs = String(millis).padStart(3, '0');
+  return `${pad(minutes)}:${pad(seconds)}.${padMs}`;
+}
+
+function startTimer(id) {
+  stopTimer(id);
+
+  const span = document.getElementById(`timer-${id}`);
+  if (!span) return;
+  const startTime = performance.now();
+  const intervalId = setInterval(() => {
+    const elapsed = performance.now() - startTime;
+    span.textContent = formatDuration(elapsed);
+  }, 100); // update every 100ms
+
+  stepTimers[id] = { startTime, intervalId };
+}
+
+function stopTimer(id) {
+  const entry = stepTimers[id];
+  if (!entry) return;
+  clearInterval(entry.intervalId);
+  const span = document.getElementById(`timer-${id}`);
+  if (span) {
+    const elapsed = performance.now() - entry.startTime;
+    span.textContent = formatDuration(elapsed);
+  }
+  delete stepTimers[id];
 }
 
 function updatePipelineStep(id, status) {
   const step = document.getElementById(`pipeline-${id}`);
   if (step) {
     step.className = `pipeline-step ${status}`;
+    if (status === 'success' || status === 'error') {
+      stopTimer(id);
+    }
   }
 }
 
