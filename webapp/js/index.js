@@ -1,8 +1,11 @@
+import { transpile } from "../transpiler/pyodide_handler.js"
+
 const EXAMPLE_SCRIPTS = [
   "fib.while",
   "factorial.while",
   "age_check.while",
-  "self_compiler.while"
+  "self_compiler.while",
+  "age_check.ewhile"
 ];
 const COMPILERS = [
   {
@@ -30,6 +33,22 @@ const COMPILERS = [
     file: 'self_compiler_iteration_4_with_optimisation_and_error_handling.wasm'
   }
 ]
+const TRANSPILERS = [
+  {
+    id: 'pydide',
+    label: 'pyodide',
+    tooltip: 'Transpiler using Pyodide, which interprets the transpiler and the input file (therefor considered slower then py2wasm).',
+    type: 1
+  },
+  {
+    id: 'py2wasm',
+    label: 'py2wasm',
+    tooltip: 'Using Py2WASM Tool, which uses Nuitka (Python Self-Compiler) to produce WASM.',
+    type: 2,
+    file: 'transpiler.wasm'
+  }
+]
+
 
 document.addEventListener("DOMContentLoaded", () => {
   const compileBtn = document.getElementById("open-run");
@@ -41,6 +60,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeSettingsBtn = document.getElementById("close-settings");
 
   generateIterationRadios('iteration-container', COMPILERS, 'iteration-it1');
+  generateTranspilerRadios('transpiler-container', TRANSPILERS, 'py2wasm'); // TODO: Load pyodide async in background
 
   let isUpdatingToolbar = false; // recursion guard
   function updateVariableToolbar(code) {
@@ -161,7 +181,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // filterScriptsByMode(languageSelect.value);
+  filterScriptsByMode(languageSelect.value);
   
   select.addEventListener("change", async () => {
     const file = select.value;
@@ -178,7 +198,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       codeEditor.setOption("mode", detectedMode);
 
-      // languageSelect.value = detectedMode;
+      languageSelect.value = detectedMode;
 
       outputArea.textContent = `Script loaded: ${file}`;
       outputArea.style.color = "#4caf50";
@@ -189,213 +209,309 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  compileBtn.addEventListener("click", async () => {
-    const steps = [
-      { id: 'run', label: 'Prepare and encode input', status: 'pending' },
-      { id: 'selfCompile', label: 'Load self compiler instance ' + getSelectedCompiler().label, status: 'pending' },
-      { id: 'execute', label: 'Compile with self compiler', status: 'pending' },
-      { id: 'executeCompiledFile', label: 'Run the compiled input', status: 'pending' }
-    ];
-    renderPipelineStatus(steps);
+  async function compile(code) {
+    const uppercaseCode = code.toUpperCase();
+    const hexString = textToAsciiHex(code);
+    const asciiResult = textToAsciiBigInt(code);
+    const asciiBigInt = asciiResult.bigint;
+    const byteCount = asciiResult.byteCount;
 
-    steps.forEach(step => {
-      startTimer(step.id);
-    });
+    outputArea.textContent = 
+      "Compiling WHILE code...\n\n" +
+      "Original code:\n" + code + "\n\n" +
+      "Uppercase code:\n" + truncateString(uppercaseCode) + "\n\n" +
+      "ASCII Hex representation:\n" + truncateString(hexString) + "\n\n" +
+      "ASCII BigInt:\n" + truncateString(asciiBigInt.toString()) + "\n\n" +
+      "Byte count:\n" + byteCount + "\n\n" +
+      "Running selected self compiler";
+    outputArea.style.color = "#2196f3";
 
-    const code = codeEditor.getValue().trim();
+    console.log("WHILE code converted to ASCII hex:", hexString);
+    console.log("WHILE code as BigInt:", asciiBigInt);
+    console.log("Byte count:", byteCount);
 
-    if (!code) {
-      outputArea.textContent =
-        "Error: No code to compile. Please enter some WHILE code.";
-      outputArea.style.color = "#ff6b6b";
-      updatePipelineStep('run', 'error');
-      updatePipelineStep('selfCompile', 'error');
-      updatePipelineStep('execute', 'error');
-      updatePipelineStep('executeCompiledFile', 'error');
-      return;
+    const parameters = {
+      "n1": asciiBigInt,  // ASCII representation as BigInt
+      "n2": BigInt(byteCount)  // Number of bytes as BigInt
+    };
+
+    updatePipelineStep('run', 'success');
+
+    console.log(`Running self_compiler.wasm with n1=${asciiBigInt}, n2=${byteCount}`);
+
+    const selectedCompiler = getSelectedCompiler();
+    const response = await fetch(`content/${selectedCompiler.file}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to load self_compiler.wasm: ${response.status}`);
     }
 
+    updatePipelineStep('selfCompile', 'success');
+
+    const wasmBytes = await response.arrayBuffer();
+
+    let result = "";
     try {
-      const uppercaseCode = code.toUpperCase();
-      const hexString = textToAsciiHex(code);
-      const asciiResult = textToAsciiBigInt(code);
-      const asciiBigInt = asciiResult.bigint;
-      const byteCount = asciiResult.byteCount;
+      result = await runWasmInWorker(wasmBytes, parameters);
+      updatePipelineStep('execute', 'success');
+    } catch (err) {
+      updatePipelineStep('execute', 'error');
+      throw err;  
+    }      
+    const resultBigInt = BigInt(result);
+    
+    // Check for error codes from IT4 compiler with error handling
+    if (selectedCompiler.id === 'iteration-it4') {
+      const errorCode = Number(resultBigInt & 0xFFn); // Get lowest byte
+      if (errorCode >= 1 && errorCode <= 9) {
+        const lineNumber = Number(resultBigInt >> 8n); // Shift right by 8 bits to get line number
+        
+        const errorMessages = {
+          1: "UNRECOGNISEDTOKEN",
+          2: "NOMOREINTEGERS", 
+          3: "NOMOREWHILE",
+          4: "NOMOREEND",
+          5: "UNREACHABLE",
+          6: "TOMANYINTEGERS",
+          7: "MISSINGSEMIKOLON",
+          8: "INVALIDTOKEN",
+          9: "TOOMANYSEMIKOLON"
+        };
+        
+        const errorMessage = errorMessages[errorCode] || `UNKNOWN_ERROR_${errorCode}`;
+        
+        outputArea.textContent = 
+          `Compilation Error (${selectedCompiler.label})!\n\n` +
+          `Error: ${errorMessage}\n` +
+          `Line: ${lineNumber}\n` +
+          `Error Code: ${errorCode}\n\n` +
+          "Original code:\n" + code + "\n\n" +
+          `Self compiler result (decimal): ${result.toString()}\n` +
+          `Error code (lowest byte): ${errorCode}\n` +
+          `Line number (result >> 8): ${lineNumber}`;
+        outputArea.style.color = "#ff6b6b";
+        
+        updatePipelineStep('execute', 'error');
+        updatePipelineStep('executeCompiledFile', 'error');
+        return;
+      }
+    }
+    
+    let hexResult = resultBigInt.toString(16);
+    
+    if (hexResult.length % 2 !== 0) {
+      hexResult = "0" + hexResult;
+    }
+    
+    const wasmHex = "00" + hexResult;
+    updatePipelineStep('execute', 'success');
+    console.log(`Self compiler result: ${result}`);
+    console.log(`Hex representation: ${hexResult}`);
+    console.log(`WASM hex with prefix: ${wasmHex}`);
+    
+    const wasmBytesFromResult = new Uint8Array(wasmHex.length / 2);
+    for (let i = 0; i < wasmHex.length; i += 2) {
+      wasmBytesFromResult[i / 2] = parseInt(wasmHex.substr(i, 2), 16);
+    }
+    
+    outputArea.textContent = 
+      "Compilation completed!" + `(${selectedCompiler.label} with ${selectedCompiler.file} has been used)`  + " Running compiled WASM...\n\n" +
+      "Original code:\n" + code + "\n\n" +
+      "Self compiler result (decimal):\n" + truncateString(result.toString()) + "\n\n" +
+      "Self compiler result (hex):\n" + truncateString(hexResult) + "\n\n" +
+      "WASM bytes (with 00 prefix):\n" + truncateString(wasmHex) + "\n\n" +
+      "Executing compiled WASM...";
+    outputArea.style.color = "#2196f3";
 
-      outputArea.textContent = 
-        "Compiling WHILE code...\n\n" +
-        "Original code:\n" + code + "\n\n" +
-        "Uppercase code:\n" + truncateString(uppercaseCode) + "\n\n" +
-        "ASCII Hex representation:\n" + truncateString(hexString) + "\n\n" +
-        "ASCII BigInt:\n" + truncateString(asciiBigInt.toString()) + "\n\n" +
-        "Byte count:\n" + byteCount + "\n\n" +
-        "Running selected self compiler";
-      outputArea.style.color = "#2196f3";
+    const toolbar = document.getElementById('variable-toolbar');
+    const inputs = Array.from(toolbar.querySelectorAll('input[id^="n"]'))
+      .filter(input => /^n[1-9]\d*$/.test(input.id)); 
 
-      console.log("WHILE code converted to ASCII hex:", hexString);
-      console.log("WHILE code as BigInt:", asciiBigInt);
-      console.log("Byte count:", byteCount);
-  
-      const parameters = {
-        "n1": asciiBigInt,  // ASCII representation as BigInt
-        "n2": BigInt(byteCount)  // Number of bytes as BigInt
-      };
+    const parametersRuntime = {};
+    inputs.forEach(input => {
+      const key = input.id;
+      let val = input.value.trim();
+      try {
+        val = val === '' ? 0n : BigInt(val);
+      } catch {
+        val = 0n;
+      }
+      parametersRuntime[key] = val;
+    });
+    
+    const finalResult = await runWasm(wasmBytesFromResult.buffer, parametersRuntime);
+    updatePipelineStep('executeCompiledFile', 'success');
+    outputArea.textContent = 
+      "Full compilation and execution completed!" + `(${selectedCompiler.label} with ${selectedCompiler.file} has been used)`  + "\n\n" +
+      "Self compiler output (decimal):\n" + result.toString() + "\n\n" +
+      "Self compiler output (hex):\n" + hexResult  + "\n\n" +
+      "WASM bytes:\n" + wasmHex  + "\n\n"
 
-      updatePipelineStep('run', 'success');
+    const outputWatCheckbox = document.getElementById('output-wat');
+    const printWat = outputWatCheckbox && outputWatCheckbox.checked;
+    if(printWat) {
+      const watCode = await generateWatCode(wasmBytes);
+      const newWindow = window.open();
+      newWindow.document.write('<pre>' + escapeHtml(watCode) + '</pre>');
+      newWindow.document.title = 'WAT Code Output';
+      newWindow.document.close();
+    }
 
-      console.log(`Running self_compiler.wasm with n1=${asciiBigInt}, n2=${byteCount}`);
+    outputArea.style.color = "#4caf50";
 
-      const selectedCompiler = getSelectedCompiler();
-      const response = await fetch(`content/${selectedCompiler.file}`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to load self_compiler.wasm: ${response.status}`);
+    document.getElementById("resultbar").innerHTML = "";
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'flex';
+    wrapper.style.alignItems = 'center';
+
+    const label = document.createElement('label');
+    label.innerHTML = `x<sub>0</sub> = ${finalResult.toString()}`;
+    label.style.marginRight = '4px';
+
+    wrapper.appendChild(label);
+    document.getElementById("resultbar").appendChild(wrapper);
+  }
+
+  compileBtn.addEventListener("click", async () => {
+    if (languageSelect.value == "text/x-while") { // using compiler
+      const steps = [
+        { id: 'run', label: 'Prepare and encode input', status: 'pending' },
+        { id: 'selfCompile', label: 'Load self compiler instance ' + getSelectedCompiler().label, status: 'pending' },
+        { id: 'execute', label: 'Compile with self compiler', status: 'pending' },
+        { id: 'executeCompiledFile', label: 'Run the compiled input', status: 'pending' }
+      ];
+      renderPipelineStatus(steps);
+
+      steps.forEach(step => {
+        startTimer(step.id);
+      });
+
+      const code = codeEditor.getValue().trim();
+
+      if (!code) {
+        outputArea.textContent =
+          "Error: No code to compile. Please enter some WHILE code.";
+        outputArea.style.color = "#ff6b6b";
+        updatePipelineStep('run', 'error');
+        updatePipelineStep('selfCompile', 'error');
+        updatePipelineStep('execute', 'error');
+        updatePipelineStep('executeCompiledFile', 'error');
+        return;
       }
 
-      updatePipelineStep('selfCompile', 'success');
+      try {
+        await compile(code)
+      } catch (error) {
+        outputArea.textContent = 
+          "Compilation failed!"//\n\n" +
+          // "Original code:\n" + code + "\n\n" +
+          //"Error:\n" + error.message;
+        outputArea.style.color = "#ff6b6b";
+        console.error("Compilation error:", error);
+        updatePipelineStep('run', 'error');
+        updatePipelineStep('selfCompile', 'error');
+        updatePipelineStep('execute', 'error');
+        updatePipelineStep('executeCompiledFile', 'error');
+      }
 
-      const wasmBytes = await response.arrayBuffer();
+      compileBtn.classList.add("clicked");
+      setTimeout(() => {
+        compileBtn.classList.remove("clicked");
+      }, 200);
+    } else { // using transpiler
+      const code = codeEditor.getValue().trim();
+
+      if (!code) {
+        outputArea.textContent = "Error: No code to transpile. Please enter some E-WHILE code.";
+        outputArea.style.color = "#ff6b6b";
+        return;
+      }
+
+      const selectedTranspiler = getSelectedTranspiler();
+      outputArea.style.color = "#2196f3";
+      outputArea.textContent = `Transpiling code using ${selectedTranspiler.label}...\n`;
 
       let result = "";
+
       try {
-        result = await runWasmInWorker(wasmBytes, parameters);
-        updatePipelineStep('execute', 'success');
-      } catch (err) {
+        if (selectedTranspiler.type === 1) {
+          const steps = [
+            { id: 'transpile', label: 'Transpile E-WHILE code with ' + selectedTranspiler.label, status: 'pending' },
+            { id: 'run', label: 'Prepare and encode transpiled WHILE input', status: 'pending' },
+            { id: 'selfCompile', label: 'Load self compiler instance ' + getSelectedCompiler().label, status: 'pending' },
+            { id: 'execute', label: 'Compile transpiled code with self compiler', status: 'pending' },
+            { id: 'executeCompiledFile', label: 'Run the compiled input', status: 'pending' }
+          ];
+          renderPipelineStatus(steps);
+
+          steps.forEach(step => {
+            startTimer(step.id);
+          });
+
+          // Pyodide
+          result = await transpile(["transpile.py", code]);
+          updatePipelineStep('transpile', 'success');
+        } else if (selectedTranspiler.type === 2) {
+          // WASM transpiler with string input
+          result = "TODO"
+        } else {
+          throw new Error("Unknown transpiler type.");
+        }
+      } catch (error) {
+        outputArea.textContent += "\nTranspilation failed:\n" + error.message;
+        outputArea.style.color = "#ff6b6b";
+        console.error("Transpile error:", error);
+        updatePipelineStep('transpile', 'error');
+        updatePipelineStep('run', 'error');
+        updatePipelineStep('selfCompile', 'error');
         updatePipelineStep('execute', 'error');
-        throw err;  
-      }      
-      const resultBigInt = BigInt(result);
-      
-      // Check for error codes from IT4 compiler with error handling
-      if (selectedCompiler.id === 'iteration-it4') {
-        const errorCode = Number(resultBigInt & 0xFFn); // Get lowest byte
-        if (errorCode >= 1 && errorCode <= 9) {
-          const lineNumber = Number(resultBigInt >> 8n); // Shift right by 8 bits to get line number
-          
-          const errorMessages = {
-            1: "UNRECOGNISEDTOKEN",
-            2: "NOMOREINTEGERS", 
-            3: "NOMOREWHILE",
-            4: "NOMOREEND",
-            5: "UNREACHABLE",
-            6: "TOMANYINTEGERS",
-            7: "MISSINGSEMIKOLON",
-            8: "INVALIDTOKEN",
-            9: "TOOMANYSEMIKOLON"
-          };
-          
-          const errorMessage = errorMessages[errorCode] || `UNKNOWN_ERROR_${errorCode}`;
-          
-          outputArea.textContent = 
-            `Compilation Error (${selectedCompiler.label})!\n\n` +
-            `Error: ${errorMessage}\n` +
-            `Line: ${lineNumber}\n` +
-            `Error Code: ${errorCode}\n\n` +
-            "Original code:\n" + code + "\n\n" +
-            `Self compiler result (decimal): ${result.toString()}\n` +
-            `Error code (lowest byte): ${errorCode}\n` +
-            `Line number (result >> 8): ${lineNumber}`;
-          outputArea.style.color = "#ff6b6b";
-          
-          updatePipelineStep('execute', 'error');
-          updatePipelineStep('executeCompiledFile', 'error');
-          return;
-        }
-      }
-      
-      let hexResult = resultBigInt.toString(16);
-      
-      if (hexResult.length % 2 !== 0) {
-        hexResult = "0" + hexResult;
-      }
-      
-      const wasmHex = "00" + hexResult;
-      updatePipelineStep('execute', 'success');
-      console.log(`Self compiler result: ${result}`);
-      console.log(`Hex representation: ${hexResult}`);
-      console.log(`WASM hex with prefix: ${wasmHex}`);
-      
-      const wasmBytesFromResult = new Uint8Array(wasmHex.length / 2);
-      for (let i = 0; i < wasmHex.length; i += 2) {
-        wasmBytesFromResult[i / 2] = parseInt(wasmHex.substr(i, 2), 16);
-      }
-      
-      outputArea.textContent = 
-        "Compilation completed!" + `(${selectedCompiler.label} with ${selectedCompiler.file} has been used)`  + " Running compiled WASM...\n\n" +
-        "Original code:\n" + code + "\n\n" +
-        "Self compiler result (decimal):\n" + truncateString(result.toString()) + "\n\n" +
-        "Self compiler result (hex):\n" + truncateString(hexResult) + "\n\n" +
-        "WASM bytes (with 00 prefix):\n" + truncateString(wasmHex) + "\n\n" +
-        "Executing compiled WASM...";
-      outputArea.style.color = "#2196f3";
-
-      const toolbar = document.getElementById('variable-toolbar');
-      const inputs = Array.from(toolbar.querySelectorAll('input[id^="n"]'))
-        .filter(input => /^n[1-9]\d*$/.test(input.id)); 
-
-      const parametersRuntime = {};
-      inputs.forEach(input => {
-        const key = input.id;
-        let val = input.value.trim();
-        try {
-          val = val === '' ? 0n : BigInt(val);
-        } catch {
-          val = 0n;
-        }
-        parametersRuntime[key] = val;
-      });
-      
-      const finalResult = await runWasm(wasmBytesFromResult.buffer, parametersRuntime);
-      updatePipelineStep('executeCompiledFile', 'success');
-      outputArea.textContent = 
-        "Full compilation and execution completed!" + `(${selectedCompiler.label} with ${selectedCompiler.file} has been used)`  + "\n\n" +
-        "Self compiler output (decimal):\n" + result.toString() + "\n\n" +
-        "Self compiler output (hex):\n" + hexResult  + "\n\n" +
-        "WASM bytes:\n" + wasmHex  + "\n\n"
-
-      const outputWatCheckbox = document.getElementById('output-wat');
-      const printWat = outputWatCheckbox && outputWatCheckbox.checked;
-      if(printWat) {
-        const watCode = await generateWatCode(wasmBytes);
-        const newWindow = window.open();
-        newWindow.document.write('<pre>' + escapeHtml(watCode) + '</pre>');
-        newWindow.document.title = 'WAT Code Output';
-        newWindow.document.close();
+        updatePipelineStep('executeCompiledFile', 'error');
+        compileBtn.classList.add("clicked");
+        setTimeout(() => {
+          compileBtn.classList.remove("clicked");
+        }, 200);
+        return
       }
 
+      try {
+        await compile(result)
+      } catch (error) {
+        outputArea.textContent = 
+          "Compilation failed!"//\n\n" +
+          // "Original code:\n" + code + "\n\n" +
+          //"Error:\n" + error.message;
+        outputArea.style.color = "#ff6b6b";
+        console.error("Compilation error:", error);
+      }
+
+      outputArea.textContent = `Transpilation complete:\n\n${result}`;
       outputArea.style.color = "#4caf50";
 
+      compileBtn.classList.add("clicked");
+      setTimeout(() => {
+        compileBtn.classList.remove("clicked");
+      }, 200);
+
+      /* Not needed because WHILE output
       document.getElementById("resultbar").innerHTML = "";
       const wrapper = document.createElement('div');
       wrapper.style.display = 'flex';
       wrapper.style.alignItems = 'center';
 
       const label = document.createElement('label');
-      label.innerHTML = `x<sub>0</sub> = ${finalResult.toString()}`;
+      label.innerHTML = `x<sub>0</sub> = ${result}`;
       label.style.marginRight = '4px';
 
       wrapper.appendChild(label);
       document.getElementById("resultbar").appendChild(wrapper);
-    } catch (error) {
-      outputArea.textContent = 
-        "Compilation failed!"//\n\n" +
-        // "Original code:\n" + code + "\n\n" +
-        //"Error:\n" + error.message;
-      outputArea.style.color = "#ff6b6b";
-      console.error("Compilation error:", error);
+      */
     }
-
-    compileBtn.classList.add("clicked");
-    setTimeout(() => {
-      compileBtn.classList.remove("clicked");
-    }, 200);
   });
 /*
   codeEditor.addEventListener("input", () => {
     codeEditor.style.height = "auto";
     codeEditor.style.height = codeEditor.scrollHeight + "px";
   });*/
-  /*
   languageSelect.addEventListener("change", (e) => {
     console.log("Language changed to:", e.target.value);
     const mode = e.target.value;  
@@ -403,7 +519,18 @@ document.addEventListener("DOMContentLoaded", () => {
     filterScriptsByMode(mode);
     codeEditor.setValue("");
     outputArea.textContent = "";
-  });*/
+    
+    /*
+    const transpilerSelection = document.getElementById("settings-content-transpiler");
+    const selfcompilerSelection = document.getElementById("settings-content-iteration");
+    if(mode == "text/x-ewhile") {
+      selfcompilerSelection.style.display = "none";
+      transpilerSelection.style.display = "block";
+    } else { // default
+      transpilerSelection.style.display = "none";
+      selfcompilerSelection.style.display = "block";
+    }*/
+  });
 });
 
 function truncateString(str, maxLength = 50) {
@@ -563,6 +690,53 @@ function generateIterationRadios(containerId, iterations, checkedId) {
   });
 }
 
+function generateTranspilerRadios(containerId, transpilers, checkedId) {
+  const container = document.getElementById(containerId);
+  if (!container) {
+    console.error(`Container with id '${containerId}' not found`);
+    return;
+  }
+
+  container.innerHTML = ''; // Clear existing content
+
+  transpilers.forEach(({ id, label, tooltip }) => {
+    const div = document.createElement('div');
+
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'transpiler';
+    input.id = id;
+    input.value = label.toLowerCase();
+    if (id === checkedId) input.checked = true;
+
+    const inputLabel = document.createElement('label');
+    inputLabel.htmlFor = id;
+    inputLabel.textContent = label;
+
+    const tooltipDiv = document.createElement('div');
+    tooltipDiv.className = 'tooltip';
+
+    const img = document.createElement('img');
+    img.className = 'question-mark';
+    img.id = `help-${id}`;
+    img.src = 'img/question_icon.png';
+
+    const span = document.createElement('span');
+    span.className = 'tooltiptext';
+    span.textContent = tooltip;
+
+    tooltipDiv.appendChild(img);
+    tooltipDiv.appendChild(span);
+
+    div.appendChild(input);
+    div.appendChild(inputLabel);
+    div.appendChild(tooltipDiv);
+    div.appendChild(document.createElement('br'));
+
+    container.appendChild(div);
+  });
+}
+
 function getSelectedCompiler() {
   const radios = document.querySelectorAll('input[name="iteration"]');
   let selected = COMPILERS[0]; // Default IT1
@@ -574,11 +748,20 @@ function getSelectedCompiler() {
   return selected;
 }
 
+function getSelectedTranspiler() {
+  const radios = document.querySelectorAll('input[name="transpiler"]');
+  let selected = TRANSPILERS[1]; // Default py2wasm
+  radios.forEach(radio => {
+    if (radio.checked) {
+      selected = TRANSPILERS.find(c => c.label.toLowerCase() === radio.value);
+    }
+  });
+  return selected;
+}
+
 async function generateWatCode(wasmBytes) {
-  // Wabt laden
   const wabt = await WabtModule();
 
-  // WASM-Bytes als Uint8Array annehmen
   try {
     const module = wabt.readWasm(wasmBytes, { readDebugNames: true });
     module.generateNames();
@@ -587,8 +770,8 @@ async function generateWatCode(wasmBytes) {
     module.destroy();
     return wat;
   } catch (e) {
-    console.error("Fehler beim Konvertieren von WASM zu WAT:", e);
-    return "// Fehler beim Erzeugen von WAT-Code";
+    console.error("Error to convert from WASM to WAT:", e);
+    return "Error generating the WAT code";
   }
 }
 

@@ -1,0 +1,42 @@
+/ Compute condition value
+/ Calculating X != Y
+
+/ X expression
+[0] / gives condition value in {{0}}
+
+/ Y expression
+[1] / gives condition value in {{1}}
+
+/ {{2}} = min({{0}}, {{1}})
+/ init
+{{2}} = {{1}} + 0; / min
+{{5}} = {{0}} + 0; / max
+
+{{3}} = {{1}} + 0; / temp variable (it resets to 0 automatically)
+{{4}} = {{0}} + 0; / temp variable (it resets to 0 automatically)
+while {{4}} > 0 Do
+    {{3}} = {{3}} - 1;
+    {{4}} = {{4}} - 1
+End;
+
+/ if ... 
+While {{3}} > 0 Do
+    / init swap
+    {{2}} = {{0}} + 0;
+    {{5}} = {{1}} + 0;
+
+    {{3}} = {{g}} + 0 / stop => previous: {{3}} = {{3}} - 1 but needs to long
+End;
+
+while {{2}} > 0 do 
+    {{2}} = {{2}} - 1;
+    {{5}} = {{5}} - 1 
+end;
+
+{{2}} = {{g}} + 0; / not assume X == Y
+while {{5}} > 0 do
+    {{2}} = {{g}} + 1; 
+    {{5}} = {{g}} + 0
+end
+
+/ now we have the condition value in {{2}}

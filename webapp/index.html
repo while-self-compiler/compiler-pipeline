@@ -16,6 +16,9 @@
 
     <!-- WABT -->  
     <script src="https://cdn.jsdelivr.net/npm/wabt@1.0.32/index.min.js"></script>
+
+    <!-- Pyodide -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
   </head>
   <body>
     <div class="container">
@@ -30,12 +33,10 @@
                     <select id="scriptSelect">
                       <option value="">Select a script</option>
                     </select>
-                    <!--
                     <select id="languageSelect">
                       <option value="text/x-while">WHILE</option>
                       <option value="text/x-ewhile">EWHILE</option>
                     </select>
-                    -->
                 </div>
                 <div class="run-navigation">
                     <button id="open-settings"><img src="img/settings_icon.png"></button>
@@ -52,10 +53,16 @@
                 <button id="close-settings"><img src="img/code_icon.png"></button>
             </div>
             <div class="settings-content">
-                <div class="settings-content-iteration">
+                <div class="settings-content-iteration" id="settings-content-iteration">
                     <h2>Self-Compiler Iteration</h2>
                     <form id="iteration-form">
                       <div id="iteration-container"></div>
+                    </form>
+                </div>
+                <div class="settings-content-transpiler" id="settings-content-transpiler">
+                    <h2>Transpiler</h2>
+                    <form id="transpiler-form">
+                      <div id="transpiler-container"></div>
                     </form>
                 </div>
             </div>
@@ -95,11 +102,11 @@
         <p>For more information, visit the <a href="https://github.com/while-self-compiler/compiler-pipeline" target="_blank">GitHub repository</a>.</p>
       </footer>
     </div>
-    <script src="content/gmp_lib.js"></script>
-    <script src="js/utils/utils.js"></script>
-    <script src="js/utils/wasm_runner.js"></script>
-    <script src="js/index.js"></script>
-    <script src="js/editor/while.js"></script>
-    <script src="js/editor/ewhile.js"></script>
+    <script src="./content/gmp_lib.js"></script>
+    <script src="./js/utils/utils.js"></script>
+    <script src="./js/utils/wasm_runner.js"></script>
+    <script type="module" src="js/index.js"></script>
+    <script src="./js/editor/while.js"></script>
+    <script src="./js/editor/ewhile.js"></script>
   </body>
 </html>

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Pyodide</title>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+</head>
+<body>
+  <h2>Running Python with Pyodide</h2>
+  <pre id="output"></pre>
+
+  <script type="module">
+    import { transpile } from "./pyodide_handler.js";
+
+    async function run() {
+      const result = await transpile(["transpile.py", "x1 = x3 + x2"]);
+      console.log("Transpile output:\n", result);
+      document.getElementById("output").textContent = result;
+    }
+
+    run();
+  </script>
+</body>
+</html>

@@ -250,7 +250,7 @@ footer {
     background-color: #252525;
     margin: 0px;
 }
-#scriptSelect {
+#scriptSelect, #languageSelect {
   appearance: none;          
   -webkit-appearance: none;  
   -moz-appearance: none;    
@@ -271,13 +271,13 @@ footer {
   background-size: 12px;
 }
 
-#scriptSelect:hover, #scriptSelect:focus {
+#scriptSelect:hover, #scriptSelect:focus, #languageSelect:hover, #languageSelect:focus {
   border-color: #9c9c9c;
   background-color: #333;
   color: #ffffff;
 }
 
-#scriptSelect option {
+#scriptSelect option, #languageSelect option {
   background-color: #333;
   cursor: pointer;
   color: #ecf0f1;
@@ -317,9 +317,13 @@ footer {
     height: 22px;
 }
 
-.settings-content-iteration form {
+.settings-content-iteration form, .settings-content-transpiler form {
     flex-direction: column;
 }
+/* 
+.settings-content-transpiler {
+  display: none;
+}*/
 .question-mark {
     width: 20px;
     height: 20px;

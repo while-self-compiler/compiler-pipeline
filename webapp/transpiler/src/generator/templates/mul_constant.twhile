@@ -1,0 +1,14 @@
+
+/***********************************************
+/ E-WHILE Transpiler: Multiplication with constant
+/ {{0}} = {{1}} * {{2}}
+
+{{3}} = {{1}} + 0; / temp variable (it resets to 0 automatically)
+
+/ {{g}} is the global 0 constant
+{{0}} = {{g}} + 0; / overwrite {{0}} (important: after the temp variables because {{0}} can be equal to {{1}})
+while {{3}} > 0 do
+    {{3}} = {{3}} - 1;
+    {{0}} = {{0}} + {{2}}
+End
+/***********************************************

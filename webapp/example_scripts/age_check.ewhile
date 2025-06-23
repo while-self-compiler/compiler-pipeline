@@ -1,0 +1,38 @@
+/*
+
+Ein kleines Beispielprogramm, welches die Kontrollsruktur "if-else" demonstriert.
+Dabei kann der Benutzer sein Alter in n1 eingeben und das Programm gibt die Altersklasse aus.
+
+Altersklassen:
+- 0-17: Kind (0)
+    - Wenn das Kind unter 6 ist dann ist es ein Kleinkind
+- 18-64: Erwachsener (1)
+- 65+: Senior (2)
+
+*/
+
+let alter, alterklasse, achtungDringendElternBenachrichtigen;
+
+alter = x1; // Alter direkt von der Eingabe
+achtungDringendElternBenachrichtigen = 0;
+
+if alter > 18 then
+    if alter > 64 then
+        alterklasse = 2 // Senior
+    else
+        alterklasse = 1 // Erwachsener
+    end
+else
+    if 6 > alter then
+        achtungDringendElternBenachrichtigen = 1000
+    end;
+
+    alterklasse = 0 // Kind
+end;
+
+// in Ausgabe schreiben
+if achtungDringendElternBenachrichtigen == 0 then 
+    x0 = alterklasse
+else
+    x0 = achtungDringendElternBenachrichtigen
+end

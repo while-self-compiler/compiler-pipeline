@@ -1,0 +1,18 @@
+
+/***********************************************
+/ E-WHILE Transpiler: Minimum
+/ {{0}} = min({{1}}, {{2}})
+{{0}} = {{2}} + 0;
+{{3}} = {{2}} + 0; / temp variable (it resets to 0 automatically)
+{{4}} = {{1}} + 0; / temp variable (it resets to 0 automatically)
+while {{4}} > 0 Do
+    {{3}} = {{3}} - 1;
+    {{4}} = {{4}} - 1
+End;
+
+/ if ... 
+While {{3}} > 0 Do
+    {{0}} = {{1}} + 0;
+    {{3}} = {{3}} - 1
+End
+/***********************************************

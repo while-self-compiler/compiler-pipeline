@@ -1,0 +1,40 @@
+
+/***********************************************
+/ E-WHILE Transpiler: If / Else Statement
+/ IF Condition THEN
+/   Statement
+/ ELSE
+/   Statement
+/ END
+
+/ {{g}} is the global 0 constant
+
+[0] / gives condition value in {{0}}
+
+{{1}} = {{g}} + 0; / temp variable: assume condition is false
+{{2}} = {{0}} + 0; / compute condition value
+
+while {{2}} > 0 do 
+    {{1}} = {{g}} + 1; / if condition is true (> 0), enable the THEN branch
+    {{2}} = {{g}} + 0  / stop loop
+end;
+
+/ THEN (runs only if {{1}} == 1)
+{{3}} = {{1}} + 0; / temporary variable to control execution
+while {{3}} > 0 do
+    [1];
+    {{3}} = {{g}} - 0 / ensure the loop only runs once
+end;
+
+/ ELSE branch (runs only if {{1}} == 0)
+{{4}} = {{g}} + 1;
+{{2}} = {{1}} + 0;
+while {{2}} > 0 do / prepare the ELSE branch
+    {{4}} = {{g}} + 0; / if {{1}} == 0, then set {{4}} = 0
+    {{2}} = {{g}} + 0
+end;
+while {{4}} > 0 do / the ELSE branch
+    [2];
+    {{4}} = {{g}} + 0 / ensure the loop only runs once
+end
+/***********************************************
