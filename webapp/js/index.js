@@ -187,6 +187,7 @@ document.addEventListener("DOMContentLoaded", () => {
       { id: 'run', label: 'Prepare and encode input', status: 'pending' },
       { id: 'selfCompile', label: 'Load self compiler instance ' + getSelectedCompiler().name, status: 'pending' },
       { id: 'execute', label: 'Compile with self compiler', status: 'pending' }
+      { id: 'executeCompiledFile', label: 'Run the compiled input', status: 'pending' }
     ];
     renderPipelineStatus(steps);
 
@@ -203,6 +204,7 @@ document.addEventListener("DOMContentLoaded", () => {
       updatePipelineStep('run', 'error');
       updatePipelineStep('selfCompile', 'error');
       updatePipelineStep('execute', 'error');
+      updatePipelineStep('executeCompiledFile', 'error');
       return;
     }
 
@@ -299,7 +301,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       
       const finalResult = await runWasm(wasmBytesFromResult.buffer, parametersRuntime);
-      
+      updatePipelineStep('executeCompiledFile', 'success');
       outputArea.textContent = 
         "Full compilation and execution completed!" + `(${selectedCompiler.label} with ${selectedCompiler.file} has been used)`  + "\n\n" +
         "Self compiler output (decimal):\n" + result.toString() + "\n\n" +
