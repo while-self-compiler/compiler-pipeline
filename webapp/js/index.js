@@ -35,40 +35,71 @@ document.addEventListener("DOMContentLoaded", () => {
 
   generateIterationRadios('iteration-container', COMPILERS, 'iteration-it1');
 
+  let isUpdatingToolbar = false; // recursion guard
   function updateVariableToolbar(code) {
-    const toolbar = document.getElementById('variable-toolbar');
-    toolbar.innerHTML = '';
+    if (isUpdatingToolbar) return;
+    isUpdatingToolbar = true;
+    try {
+      const toolbar = document.getElementById('variable-toolbar');
+      toolbar.innerHTML = '';
 
-    const matches = code.match(/\bx(\d+)\b/g);
-    if (!matches) return;
+      const MAX_VARIABLES = 1000; // because of WASM limit
+      const seen = new Set();
 
-    const nums = matches
-      .map(m => parseInt(m.slice(1)))
-      .filter(n => !isNaN(n) && n > 0); // ignore x0
+      const regex = /\bx(\d+)\b/g;
+      let match;
+      while ((match = regex.exec(code)) !== null) {
+        const n = parseInt(match[1], 10);
+        if (!isNaN(n) && n > 0) {
+          seen.add(n);
+        }
+        if (seen.size >= MAX_VARIABLES) break;
+      }
 
-    if (nums.length === 0) return;
+      if (seen.size === 0) {
+        return;
+      }
 
-    const max = Math.max(...nums);
+      const nums = Array.from(seen).sort((a, b) => a - b);
 
-    for (let n = 1; n <= max; n++) {
-      const wrapper = document.createElement('div');
-      wrapper.style.display = 'flex';
-      wrapper.style.alignItems = 'center';
+      for (let n of nums) {
+        const wrapper = document.createElement('div');
+        wrapper.style.display = 'flex';
+        wrapper.style.alignItems = 'center';
 
-      const label = document.createElement('label');
-      label.innerHTML = `n<sub>${n}</sub> =`;
-      label.style.marginRight = '4px';
+        const label = document.createElement('label');
+        label.innerHTML = `n<sub>${n}</sub> =`;
+        label.style.marginRight = '4px';
 
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.id = `n${n}`;
-      input.name = `n${n}`; 
-      input.value = '0';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = `n${n}`;
+        input.name = `n${n}`;
+        input.value = '0';
 
-      wrapper.appendChild(label);
-      wrapper.appendChild(input);
-      toolbar.appendChild(wrapper);
+        wrapper.appendChild(label);
+        wrapper.appendChild(input);
+        toolbar.appendChild(wrapper);
+      }
+
+      if (regex.exec !== undefined && seen.size >= MAX_VARIABLES) {
+        const note = document.createElement('div');
+        note.style.marginTop = '10px';
+        note.style.color = '#ff9800';
+        note.textContent = `Only the first ${MAX_VARIABLES} distinct variables are shown. Note that the current self compiler implementation cannot handle more than 1000 variables (due to a WASM limitation). However, this could be circumvented by suitable approaches`;
+        toolbar.appendChild(note);
+      }
+    } finally {
+      isUpdatingToolbar = false;
     }
+  }
+
+  function debounce(fn, delay) {
+    let timeout;
+    return function(...args) {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => fn.apply(this, args), delay);
+    };
   }
 
   settingsBtn.addEventListener("click", () => {
@@ -90,11 +121,11 @@ document.addEventListener("DOMContentLoaded", () => {
     tabSize: 2,
     lineWrapping: true
   });
-  codeEditor.on("change", () => {
+  const debouncedUpdate = debounce(() => {
     const code = codeEditor.getValue();
     updateVariableToolbar(code);
-  });
-
+  }, 300);
+  codeEditor.on("change", debouncedUpdate);
   EXAMPLE_SCRIPTS.forEach(file => {
     const opt = document.createElement("option");
     opt.value = file;
@@ -146,8 +177,8 @@ document.addEventListener("DOMContentLoaded", () => {
       outputArea.style.color = "#4caf50";
 
     } catch (err) {
-      outputArea.textContent = `Error: ${err.message}`;
-      outputArea.style.color = "#ff6b6b";
+      //outputArea.textContent = `Error: ${err.message}`;
+      //outputArea.style.color = "#ff6b6b";
     }
   });
 
@@ -295,9 +326,9 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("resultbar").appendChild(wrapper);
     } catch (error) {
       outputArea.textContent = 
-        "Compilation failed!\n\n" +
-        "Original code:\n" + code + "\n\n" +
-        "Error:\n" + error.message;
+        "Compilation failed!"//\n\n" +
+        // "Original code:\n" + code + "\n\n" +
+        //"Error:\n" + error.message;
       outputArea.style.color = "#ff6b6b";
       console.error("Compilation error:", error);
     }
