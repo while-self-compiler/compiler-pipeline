@@ -225,6 +225,21 @@ footer {
     border-radius: 4px;
 	border: 1px solid #555555;
 }
+.CodeMirror-vscrollbar::-webkit-scrollbar-track {
+    background-color: #2c2c2c;
+}
+
+.CodeMirror-vscrollbar::-webkit-scrollbar {
+    width: 8px;      
+    border-radius: 4px;
+    background-color: #F5F5F5;
+}
+
+.CodeMirror-vscrollbar::-webkit-scrollbar-thumb {
+    background-color: #747474;
+    border-radius: 4px;
+    border: 1px solid #555555;
+}
 
 .navigation {
     height: 40px;
@@ -366,6 +381,10 @@ footer {
   padding: 10px;
 }
 
+.cm-s-material.CodeMirror, .cm-s-material .CodeMirror-gutters {
+  background-color: #2c2c2c !important;
+}
+
 /* Keywords (while, do, end, macro, use, etc.) */
 .cm-keyword {
   color: #ff9800; /* orange */
@@ -410,4 +429,8 @@ footer {
   background: #2c2c2c;
   color: #aaa;
   border-right: 1px solid #444;
+}
+
+.margin-10 {
+  margin: 10px;
 }
