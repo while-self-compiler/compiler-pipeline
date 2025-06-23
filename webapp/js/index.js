@@ -21,6 +21,12 @@ const COMPILERS = [
     label: 'IT3',
     tooltip: 'Third iteration, after compiling same sourcecode with IT2 (IT2 and IT3 are fully identical (fixpoint)).',
     file: 'self_compiler_iteration_3_with_optimisation.wasm'
+  },
+  {
+    id: 'iteration-it4',
+    label: 'IT4',
+    tooltip: 'Fourth iteration with error handling and error codes with line numbers.',
+    file: 'self_compiler_iteration_4_with_optimisation_and_error_handling.wasm'
   }
 ]
 
@@ -186,7 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const steps = [
       { id: 'run', label: 'Prepare and encode input', status: 'pending' },
       { id: 'selfCompile', label: 'Load self compiler instance ' + getSelectedCompiler().name, status: 'pending' },
-      { id: 'execute', label: 'Compile with self compiler', status: 'pending' }
+      { id: 'execute', label: 'Compile with self compiler', status: 'pending' },
       { id: 'executeCompiledFile', label: 'Run the compiled input', status: 'pending' }
     ];
     renderPipelineStatus(steps);
