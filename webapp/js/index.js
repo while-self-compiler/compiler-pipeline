@@ -1,6 +1,7 @@
 const EXAMPLE_SCRIPTS = [
   "fib.while",
   "factorial.while",
+  "age_check.while",
   "self_compiler.while"
 ];
 const COMPILERS = [
