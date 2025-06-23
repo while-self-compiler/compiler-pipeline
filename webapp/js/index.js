@@ -5,7 +5,10 @@ const EXAMPLE_SCRIPTS = [
   "factorial.while",
   "age_check.while",
   "self_compiler.while",
-  "age_check.ewhile"
+  "age_check.ewhile",
+  "unary_list.ewhile",
+  "find_prim.ewhile",
+  "find_nearest_smallest_prim.ewhile"
 ];
 const COMPILERS = [
   {

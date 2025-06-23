@@ -1,0 +1,20 @@
+let list, SHIFT, add, addAnother;
+
+SHIFT = 1;
+
+macro listAdd { // A macro to add a value as a unary element to a list
+    list = list << SHIFT;
+    list = list + 1;
+    while add > 0 do
+        list = list << SHIFT;
+        add = add - 1
+    end
+}
+
+add = x1;
+use listAdd;
+
+add = x2;
+use listAdd;
+
+x0 = list

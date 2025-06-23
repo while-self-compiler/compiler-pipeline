@@ -1,0 +1,29 @@
+/*
+
+Ein Programm, um die nächste kleinste Primzahl zu n1 zu finden
+
+*/
+
+let n, zahl, teiler, istPrim, res;
+n = x1; // Obergrenze
+zahl = 2;  // Startwert
+
+while n > zahl - 1 do
+    teiler = 2;
+    istPrim = 1;
+
+    while zahl > teiler * teiler do
+        if zahl % teiler == 0 then
+            istPrim = 0
+        end;
+        teiler = teiler + 1
+    end;
+
+    if istPrim == 1 then
+        res = zahl
+    end;
+    
+    zahl = zahl + 1
+end;
+
+x0 = res

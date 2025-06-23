@@ -1,0 +1,33 @@
+/*
+
+Ein Programm, um die nte Primzahl zu finden.
+
+Input:
+- n1: Die Nummer der Primzahl, die gefunden werden soll.
+
+*/
+let n, zahl, gefunden, istPrim, teiler, res;
+n = x1;  // die Nummer der Primzahl, die gefunden werden soll
+zahl = 2;  // Startwert
+gefunden = 0;  // wie viele Primzahlen bisher gefunden
+
+while n > gefunden do
+    teiler = 2;
+    istPrim = 1;
+
+    while zahl + 1 > teiler * teiler do
+        if zahl % teiler == 0 then
+            istPrim = 0
+        end;
+        teiler = teiler + 1
+    end;
+
+    if istPrim == 1 then
+        gefunden = gefunden + 1;
+        res = zahl
+    end;
+
+    zahl = zahl + 1
+end;
+
+x0 = res
