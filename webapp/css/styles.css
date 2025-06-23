@@ -131,7 +131,7 @@ button:hover {
   margin-right: 6px;
   white-space: nowrap;
   color: #eee;
-  user-select: none;
+  /*user-select: none;*/
 }
 
 form label {
