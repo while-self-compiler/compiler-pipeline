@@ -191,7 +191,7 @@ document.addEventListener("DOMContentLoaded", () => {
   compileBtn.addEventListener("click", async () => {
     const steps = [
       { id: 'run', label: 'Prepare and encode input', status: 'pending' },
-      { id: 'selfCompile', label: 'Load self compiler instance ' + getSelectedCompiler().name, status: 'pending' },
+      { id: 'selfCompile', label: 'Load self compiler instance ' + getSelectedCompiler().label, status: 'pending' },
       { id: 'execute', label: 'Compile with self compiler', status: 'pending' },
       { id: 'executeCompiledFile', label: 'Run the compiled input', status: 'pending' }
     ];
