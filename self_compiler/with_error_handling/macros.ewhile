@@ -1,0 +1,1336 @@
+// INIT GLOBAL VARS
+let tokenStream, integerStream, amountOfTokens, constantPool, tokenOffset, integerOffset, constantOffset, highestI;
+
+// INIT MACROS
+
+let word, wordLen, shift, tokenFound;
+
+let constEight, constThirtyTwo;
+constEight = 8;
+constThirtyTwo = 32;
+
+macro getWord {
+    shift = x2 - wordLen;
+    shift = shift * constEight;
+    word = x1 >> shift
+}
+
+macro delWord {
+    shift = x2 - wordLen;
+    shift = shift * constEight;
+    word = word << shift;
+    x2 = x2 - wordLen;
+    x1 = x1 - word
+}
+
+let foundWhitespace, lineNum;
+lineNum = 1;
+
+macro jumpWhitespace {
+    wordLen = 1;
+    foundWhitespace = 1;
+    while foundWhitespace > 0 do
+        foundWhitespace = 0;
+        shift = x2 - wordLen;
+        shift = shift * constEight;
+        word = x1 >> shift;
+        if word == wordSpace then
+            foundWhitespace = 1
+        end;
+
+        if word == wordNewline then
+            foundWhitespace = 1;
+            lineNum = lineNum + 1
+        end;
+        if word == wordTab then
+            foundWhitespace = 1
+        end;
+        if foundWhitespace > 0 then
+            shift = x2 - wordLen;
+            shift = shift * constEight;
+            word = word << shift;
+            x2 = x2 - wordLen;
+            x1 = x1 - word;
+            tokenFound = 1
+        end
+    end
+}
+
+let error;
+error = 0;
+
+macro errorLineNum {
+    shift = 8;
+    lineNum = lineNum << shift;
+    error = error + lineNum;
+    x1 = 0
+}
+
+let num, digit, foundNum, mult;
+
+macro parseNumber {
+    wordLen = 1;
+    foundNum = 1;
+    num = 0;
+    mult = 10;
+    while foundNum > 0 do
+        foundNum = 0;
+        shift = x2 - wordLen;
+        shift = shift * constEight;
+        word = x1 >> shift;
+        if word > 47 then
+            if 58 > word then
+                foundNum = 1;
+                digit = word - 48
+            end
+        end;
+        if foundNum > 0 then
+            num = num * mult;
+            num = num + digit;
+            shift = x2 - wordLen;
+            shift = shift * constEight;
+            word = word << shift;
+            x2 = x2 - wordLen;
+            x1 = x1 - word
+        end
+    end
+}
+
+let tempNum, isFirst, threeBitNum, modulo, numTokens, numLeng;
+
+macro numOut {
+    isFirst = 0;
+    tempNum = num;
+    numTokens = 0;
+    numLeng = 0;
+    if tempNum == 0 then
+        // Special case for 0
+        threeBitNum = 0;
+        shift = 1;
+        threeBitNum = threeBitNum << shift;
+        threeBitNum = threeBitNum + isFirst;
+        shift = 4;
+        numTokens = numTokens << shift;
+        numTokens = numTokens + threeBitNum;
+        numLeng = numLeng + 4
+    else
+        while tempNum > 0 do
+            modulo = constEight;
+            threeBitNum = tempNum % modulo;
+            shift = 3;
+            tempNum = tempNum >> shift;
+            shift = 1;
+            threeBitNum = threeBitNum << shift;
+            threeBitNum = threeBitNum + isFirst;
+            if isFirst == 0 then
+                isFirst = 1
+            end;
+            shift = 4;
+            numTokens = numTokens << shift;
+            numTokens = numTokens + threeBitNum;
+            numLeng = numLeng + 4
+        end
+    end;
+    shift = integerOffset;
+    numTokens = numTokens << shift;
+    integerStream = integerStream + numTokens;
+    integerOffset = integerOffset + numLeng
+}
+
+let isTooBig, knownConst, numKnownConst, isKnown, knownConstTemp, numKnownConstTemp, knownConsts;
+
+macro constOut {
+
+    if num > 0 then
+
+
+        isFirst = 0;
+        shift = 32;
+        tempNum = num >> shift;
+        isTooBig = 0;
+        numTokens = 0;
+        numLeng = 0;
+        if tempNum > 0 then
+            isTooBig = 1
+        end;
+        tempNum = num;
+        isKnown = 0;
+        if isTooBig == 0 then
+            // Check if in knownConsts and set isKnown
+            knownConstTemp = knownConsts;
+            numKnownConstTemp = numKnownConst * constThirtyTwo;
+            while knownConstTemp > 0 do
+                numKnownConstTemp = numKnownConstTemp - 32;
+                shift = numKnownConstTemp;
+                knownConst = knownConstTemp >> shift;
+                if knownConst == tempNum then
+                    isKnown = 1
+                end;
+                shift = numKnownConstTemp;
+                knownConst = knownConst << shift;
+                knownConstTemp = knownConstTemp - knownConst
+            end;
+            if isKnown == 0 then
+                shift = 32;
+                knownConsts = knownConsts << shift;
+                knownConsts = knownConsts + tempNum;
+                numKnownConst = numKnownConst + 1
+            end
+        end;
+        if isKnown == 0 then
+            isFirst = 0;
+            tempNum = num;
+            if tempNum == 0 then
+                // Special case for 0
+                threeBitNum = 0;
+                shift = 1;
+                threeBitNum = threeBitNum << shift;
+                threeBitNum = threeBitNum + isFirst;
+                shift = 4;
+                numTokens = numTokens << shift;
+                numTokens = numTokens + threeBitNum;
+                numLeng = numLeng + 4
+            else
+                while tempNum > 0 do
+                    modulo = constEight;
+                    threeBitNum = tempNum % modulo;
+                    shift = 3;
+                    tempNum = tempNum >> shift;
+                    shift = 1;
+                    threeBitNum = threeBitNum << shift;
+                    threeBitNum = threeBitNum + isFirst;
+                    if isFirst == 0 then
+                        isFirst = 1
+                    end;
+                    shift = 4;
+                    numTokens = numTokens << shift;
+                    numTokens = numTokens + threeBitNum;
+                    numLeng = numLeng + 4
+                end
+            end;
+
+            shift = constantOffset;
+            numTokens = numTokens << shift;
+            constantPool = constantPool + numTokens;
+            constantOffset = constantOffset + numLeng
+        end
+    end
+
+}
+
+let token;
+
+macro pushToken {
+    shift = tokenOffset;
+    token = token << shift;
+    tokenStream = tokenStream + token;
+    tokenOffset = tokenOffset + 2;
+    amountOfTokens = amountOfTokens + 1
+}
+
+macro updateHighestI {
+    tempNum = num;
+    if tempNum > highestI then
+        highestI = tempNum
+    end
+}
+
+macro getNextToken {
+    TOKENSIZE = 4; // 4 Tokenclasses = 2^2 = 4
+    amountOfTokens = amountOfTokens - 1;
+    currentToken = tokenStream % TOKENSIZE;
+
+    TOKENSIZE = 2;
+    tokenStream = tokenStream >> TOKENSIZE
+}
+
+macro getNextNumber {
+    TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+    currentNumber = integerStream % TOKENSIZE;
+    TOKENSIZE = 4;
+    integerStream = integerStream >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = currentNumber % TOKENSIZE;
+    TOKENSIZE = 1;
+    currentNumber = currentNumber >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        currentNumber = currentNumber << tempTemp;
+        tempTemp = integerStream % TOKENSIZE;
+        TOKENSIZE = 4;
+        integerStream = integerStream >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        currentNumber = currentNumber + tempTemp
+    end
+}
+
+let highBit, isNegative;
+
+macro encodeLeb { // LEB128 encoding (unsigned)
+    temp = currentTranslation;
+    currentTranslation = 0;
+    lebByteAmount = 0;
+    tempTempTemp = 0;
+
+    shift = 31;
+    isNegative = temp >> shift; // get MSB
+
+    tempTemp = 128;
+    GENERATIONSIZE = 7;
+
+    while temp != 0 do
+        tempTempTemp = temp % tempTemp; // get lower 7 bits
+        temp = temp >> GENERATIONSIZE;
+
+        shift = 6;
+        highBit = tempTempTemp >> shift; // get MSB
+
+        if temp != 0 then
+            tempTempTemp = tempTempTemp + 128   // set MSB to 1 if more bytes to read
+        else
+            if highBit > 0 then
+                tempTempTemp = tempTempTemp + 128   // set MSB to 1 if more bytes to read
+            end
+        end;
+
+        GENERATIONSIZE = 8;
+        currentTranslation = currentTranslation << GENERATIONSIZE;
+        currentTranslation = currentTranslation + tempTempTemp; // add byte to translation
+
+        lebByteAmount = lebByteAmount + 1;
+
+        GENERATIONSIZE = 7;
+        tempTemp = 128
+    end;
+
+    if highBit > 0 then
+        GENERATIONSIZE = 8;
+        currentTranslation = currentTranslation << GENERATIONSIZE;
+        lebByteAmount = lebByteAmount + 1
+    end;
+
+    if isNegative > 0 then
+        temp = 112; // sign extension for negative numbers
+        currentTranslation = currentTranslation + temp
+    end;
+
+    if lebByteAmount == 0 then
+        lebByteAmount = 1
+    end
+}
+
+macro generate { // lebencoding not directly in this macro because then there is a lot of unnecessary code for generation without LEB128
+    // adds a new 32 bit number to translation (each wasm instruction is 32 bits)
+    translation = translation << GENERATIONSIZE;
+    translation = translation + currentTranslation
+}
+// TODO: Stack functions can be replaced with a real stack implementation (for example for other control structures, error handling or semi check)
+
+macro push {
+    // pushes a open paranthesis to the stack
+    // this is done similar to a count semaphore (increasing when opening and decreasing when closing)
+    stack = stack + 1
+}
+
+macro pop {
+    // pops a close paranthesis from the stack
+    // this is done similar to a count semaphore (increasing when opening and decreasing when closing)
+    stack = stack - 1
+}
+
+macro getNextConstant {
+    TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+    currentConstant = constantPool % TOKENSIZE;
+    TOKENSIZE = 4;
+    constantPool = constantPool >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = currentConstant % TOKENSIZE;
+    TOKENSIZE = 1;
+    currentConstant = currentConstant >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        currentConstant = currentConstant << tempTemp;
+        tempTemp = constantPool % TOKENSIZE;
+        TOKENSIZE = 4;
+        constantPool = constantPool >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        currentConstant = currentConstant + tempTemp
+    end
+}
+
+let found, tempConstantPoolFinder;
+
+macro findConstant {
+    // finds the constant pool index of the current constant
+    found = 0;
+    tempConstantPoolFinder = constantPool;
+
+    // find constant index
+    while found == 0 do
+        // get next constant
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        currentConstant = tempConstantPoolFinder % TOKENSIZE;
+        TOKENSIZE = 4;
+        tempConstantPoolFinder = tempConstantPoolFinder >> TOKENSIZE;
+
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = currentConstant % TOKENSIZE;
+        TOKENSIZE = 1;
+        currentConstant = currentConstant >> TOKENSIZE;
+
+        while temp != 0 do
+            // there are more bits to read
+            TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+            tempTemp = 3;
+            currentConstant = currentConstant << tempTemp;
+            tempTemp = tempConstantPoolFinder % TOKENSIZE;
+            TOKENSIZE = 4;
+            tempConstantPoolFinder = tempConstantPoolFinder >> TOKENSIZE;
+            TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+            temp = tempTemp % TOKENSIZE;
+            TOKENSIZE = 1;
+            tempTemp = tempTemp >> TOKENSIZE;
+            currentConstant = currentConstant + tempTemp
+        end;
+
+        if currentConstant == findConstant then
+            found = 1
+        else
+            i = i + 1
+        end
+    end
+}
+
+macro twoVarOptimisation {
+/*
+This is a two variable code optimiser.
+
+It replaces the following code:
+while x1 > 0 do
+x2 = x2 op 1;
+x1 = x1 - 1
+end
+
+or
+
+while x1 > 0 do
+x1 = x1 - 1;
+x2 = x2 op 1
+end
+
+with op = + or -
+
+with the following code:
+x2 = x2 + x1;
+x1 = x1 - x1; (x1 = 0)
+*/
+
+    optimise = 0; // default false
+
+    let xOne, xOneOne, xTwo, xTwoTwo, cOne, cTwo, match, tempTwoVarIntegerStream, twoVarTokenStream, lookaheadNumber, plus;
+    let inductionVariable, assignmentVariable;
+    tempTwoVarIntegerStream = integerStream;
+    twoVarTokenStream = tokenStream;
+    TOKENSIZE = 64; // 3 token lookahead (2^6)
+    lookaheadNumber = twoVarTokenStream % TOKENSIZE;
+    TOKENSIZE = 6;
+    twoVarTokenStream = twoVarTokenStream >> TOKENSIZE;
+    plus = 0; // 0 = -, 1 = +
+
+    // x1 fetch
+    TOKENSIZE = 16;
+    xOne = tempTwoVarIntegerStream % TOKENSIZE;
+    TOKENSIZE = 4;
+    tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = xOne % TOKENSIZE;
+    TOKENSIZE = 1;
+    xOne = xOne >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        xOne = xOne << tempTemp;
+        tempTemp = tempTwoVarIntegerStream % TOKENSIZE;
+        TOKENSIZE = 4;
+        tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        xOne = xOne + tempTemp
+    end;
+
+    // x1' fetch
+    TOKENSIZE = 16;
+    xOneOne = tempTwoVarIntegerStream % TOKENSIZE;
+    TOKENSIZE = 4;
+    tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = xOneOne % TOKENSIZE;
+    TOKENSIZE = 1;
+    xOneOne = xOneOne >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        xOneOne = xOneOne << tempTemp;
+        tempTemp = tempTwoVarIntegerStream % TOKENSIZE;
+        TOKENSIZE = 4;
+        tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        xOneOne = xOneOne + tempTemp
+    end;
+
+    // c1 fetch
+    TOKENSIZE = 16;
+    cOne = tempTwoVarIntegerStream % TOKENSIZE;
+    TOKENSIZE = 4;
+    tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = cOne % TOKENSIZE;
+    TOKENSIZE = 1;
+    cOne = cOne >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        cOne = cOne << tempTemp;
+        tempTemp = tempTwoVarIntegerStream % TOKENSIZE;
+        TOKENSIZE = 4;
+        tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        cOne = cOne + tempTemp
+    end;
+
+    // x2 fetch
+    TOKENSIZE = 16;
+    xTwo = tempTwoVarIntegerStream % TOKENSIZE;
+    TOKENSIZE = 4;
+    tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = xTwo % TOKENSIZE;
+    TOKENSIZE = 1;
+    xTwo = xTwo >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        xTwo = xTwo << tempTemp;
+        tempTemp = tempTwoVarIntegerStream % TOKENSIZE;
+        TOKENSIZE = 4;
+        tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        xTwo = xTwo + tempTemp
+    end;
+
+    // x2' fetch
+    TOKENSIZE = 16;
+    xTwoTwo = tempTwoVarIntegerStream % TOKENSIZE;
+    TOKENSIZE = 4;
+    tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = xTwoTwo % TOKENSIZE;
+    TOKENSIZE = 1;
+    xTwoTwo = xTwoTwo >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        xTwoTwo = xTwoTwo << tempTemp;
+        tempTemp = tempTwoVarIntegerStream % TOKENSIZE;
+        TOKENSIZE = 4;
+        tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        xTwoTwo = xTwoTwo + tempTemp
+    end;
+
+    // c2 fetch
+    TOKENSIZE = 16;
+    cTwo = tempTwoVarIntegerStream % TOKENSIZE;
+    TOKENSIZE = 4;
+    tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+
+    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+    temp = cTwo % TOKENSIZE;
+    TOKENSIZE = 1;
+    cTwo = cTwo >> TOKENSIZE;
+
+    while temp != 0 do
+        // there are more bits to read
+        TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+        tempTemp = 3;
+        cTwo = cTwo << tempTemp;
+        tempTemp = tempTwoVarIntegerStream % TOKENSIZE;
+        TOKENSIZE = 4;
+        tempTwoVarIntegerStream = tempTwoVarIntegerStream >> TOKENSIZE;
+        TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+        temp = tempTemp % TOKENSIZE;
+        TOKENSIZE = 1;
+        tempTemp = tempTemp >> TOKENSIZE;
+        cTwo = cTwo + tempTemp
+    end;
+
+    // (end op2 op1) = (01 10 11) (end + -), (01 11 10) (end - +), (01 11 11) (end - -)
+
+    // check if x1 == x1' and x2 == x2'
+    if xOne == xOneOne then
+        if xTwo == xTwoTwo then
+            // check if c1 == c2 == 1
+            if cOne == 1 then
+                if cTwo == 1 then
+                    match = 27; // (01 10 11)
+                    if match == lookaheadNumber then
+                        if condition == xOne then // if x1 is induction variable
+                            optimise = 1;
+                            plus = 1;
+
+                            // already remove from both streams
+                            integerStream = tempTwoVarIntegerStream;
+                            tokenStream = twoVarTokenStream;
+                            amountOfTokens = amountOfTokens - 3;
+                            inductionVariable = xOne;
+                            assignmentVariable = xTwo
+                        end
+                    else
+                        match = 30; // (01 11 10)
+                        if match == lookaheadNumber then
+                            if condition == xTwo then // if x2 is induction variable
+                                optimise = 1;
+                                plus = 1;
+
+                                // already remove from both streams
+                                integerStream = tempTwoVarIntegerStream;
+                                tokenStream = twoVarTokenStream;
+                                amountOfTokens = amountOfTokens - 3;
+                                inductionVariable = xTwo;
+                                assignmentVariable = xOne
+                            end
+                        else
+                            match = 31; // (01 11 11)
+                            if match == lookaheadNumber then
+                                // no induction variable check needed
+                                optimise = 1;
+
+                                // already remove from both streams
+                                integerStream = tempTwoVarIntegerStream;
+                                tokenStream = twoVarTokenStream;
+                                amountOfTokens = amountOfTokens - 3;
+
+                                if condition == xOne then // if x1 is induction variable
+                                    inductionVariable = xOne;
+                                    assignmentVariable = xTwo
+                                else // if x2 is induction variable
+                                    inductionVariable = xTwo;
+                                    assignmentVariable = xOne
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    // print = integerStream // for testing
+}
+
+
+
+let optimisationPatternInteger, optimisationPatternToken, optimisationPatternTokenAmount, canOptimised, moduloTemp, constOne, tokenStreamTemp;
+let tempIntegerFromIntegerStream, tempIntegerFromPatternInteger, tempOptimisationIntegerStream;
+let mulPatternInteger, mulPatternToken, mulAmountOfTokens;
+let bitshiftRightPatternInteger, bitshiftRightPatternToken, bitshiftRightPatternTokenAmount;
+let bitshiftLeftPatternInteger, bitshiftLeftPatternToken, bitshiftLeftPatternTokenAmount;
+let moduloPatternInteger, moduloPatternToken, moduloPatternTokenAmount;
+let constantCounter, optimisationToken, isNextNumberAConstant, amountOfNumbersInToken;
+let totalAmountOfOptimisedTokens, totalAmountOfOptimisedIntegers;
+let placeholderForXOne, placeholderForXTwo, placeholderForXThree, placeholderForXFour, placeholderForXFive, placeholderForXSix, placeholderForXSeven, placeholderForXEight, placeholderForXNine, placeholderForXTen, placeholderForXEleven, placeholderForXTwelve;
+let placeholderForXOneZeroFlag, placeholderForXTwoZeroFlag, placeholderForXThreeZeroFlag, placeholderForXFourZeroFlag, placeholderForXFiveZeroFlag, placeholderForXSixZeroFlag, placeholderForXSevenZeroFlag, placeholderForXEightZeroFlag, placeholderForXNineZeroFlag, placeholderForXTenZeroFlag, placeholderForXElevenZeroFlag, placeholderForXTwelveZeroFlag;
+
+constOne = 1;
+
+// PATTERNS
+
+/*
+Python Code to generate Binary Integer Pattern:
+def encode_numbers(input_str):
+numbers = list(map(int, input_str.strip().split()))
+result = ["1"]
+
+for num in numbers:
+if num == 0:
+result.append("000 0")
+continue
+
+binary = bin(num)[2:]
+
+blocks = []
+while binary:
+blocks.append(binary[-3:].rjust(3, '0'))
+binary = binary[:-3]
+
+encoded = []
+for i, block in enumerate(blocks):
+flag = '0' if i == 0 else '1'
+encoded.append(f"{block} {flag}")
+result.extend(encoded)
+
+return ' '.join(result)
+Python Code to reverse number stream:
+def reverse_numbers(sequence: str) -> str:
+numbers = sequence.strip().split()
+reversed_numbers = numbers[::-1]
+return ' '.join(reversed_numbers)
+Python Code to generate Binary Token Pattern:
+def tokens_to_binary_string(input_str):
+tokens = input_str.strip().split()
+binary_tokens = ['{0:02b}'.format(int(token)) for token in tokens]
+return (' '.join(binary_tokens), len(binary_tokens))
+*/
+
+// MUL
+// Var Pattern: 5 2 0 6 3 0 7 6 0 1 4 0 5 5 5 1 6 6 6 1 1 1 1 6 7 0
+// Var Pattern Reversed: 0 7 6 1 1 1 1 6 6 6 1 5 5 5 0 4 1 0 6 7 0 3 6 0 2 5
+// Var Pattern Binary: 1 000 0 111 0 110 0 001 0 001 0 001 0 001 0 110 0 110 0 110 0 001 0 101 0 101 0 101 0 000 0 100 0 001 0 000 0 110 0 111 0 000 0 011 0 110 0 000 0 010 0 101 0
+mulPatternInteger = 21451685285784914306915174367306;
+// Token Pattern: 2 2 2 2 0 3 0 3 2 1 2 1
+// Token Pattern Reversed: 1 2 1 2 3 0 3 0 2 2 2 2
+// Token Pattern Binary: 01 10 01 10 11 00 11 00 10 10 10 10
+mulPatternToken = 6737066;
+mulAmountOfTokens = 12; // 12 Tokens in Pattern
+
+// BITSHIFT RIGHT
+// Var Pattern: 2 3 0 4 5 0 2 6 7 0 8 4 0 9 8 1 9 8 8 2 6 6 1 9 8 1 4 6 0 2 2 1 10 4 0
+// Var Pattern Reversed: 0 4 10 1 2 2 0 6 4 1 8 9 1 6 6 2 8 8 9 1 8 9 0 4 8 0 7 6 2 0 5 4 0 3 2
+// Var Pattern Binary: 1 000 0 100 0 010 0 001 1 001 0 010 0 010 0 000 0 110 0 100 0 001 0 000 0 001 1 001 0 001 1 001 0 110 0 110 0 010 0 000 0 001 1 000 0 001 1 001 0 001 1 001 0 000 0 001 1 001 0 001 1 000 0 100 0 000 0 001 1 000 0 111 0 110 0 010 0 000 0 101 0 100 0 000 0 011 0 010 0
+bitshiftRightPatternInteger = 98872254235421768630831084679754259522393087534596196;
+// Token Pattern: 2 2 0 2 2 3 0 3 2 3 1 2 3 1 2
+// Token Pattern Reversed: 2 1 3 2 1 3 2 3 0 3 2 2 0 2 2
+// Token Pattern Binary: 10 01 11 10 01 11 10 11 00 11 10 10 00 10 10
+bitshiftRightPatternToken = 664718986;
+bitshiftRightPatternTokenAmount = 15;
+
+// BITSHIFT LEFT
+// Var Pattern: 10 10 1 1 2 0 4 3 0 5 10 0 4 7 5 0 7 7 7 1 5 5 1 4 4 1 6 5 0 11 8 0 6 9 2 0 9 11 11 1 9 9 1 6 6 1 5 6 0 1 11 0
+// Var Pattern Reversed: 0 11 1 0 6 5 1 6 6 1 9 9 1 11 11 9 0 2 9 6 0 8 11 0 5 6 1 4 4 1 5 5 1 7 7 7 0 5 7 4 0 10 5 0 3 4 0 2 1 1 10 10
+// Var Pattern Binary: 1 000 0 011 0 001 1 001 0 000 0 110 0 101 0 001 0 110 0 110 0 001 0 001 0 001 1 001 0 001 1 001 0 011 0 001 1 011 0 001 1 001 0 001 1 000 0 010 0 001 0 001 1 110 0 000 0 000 0 001 1 011 0 001 1 000 0 101 0 110 0 001 0 100 0 100 0 001 0 101 0 101 0 001 0 111 0 111 0 111 0 000 0 101 0 111 0 100 0 000 0 010 0 001 1 101 0 000 0 011 0 100 0 000 0 010 0 001 0 001 0 010 0 001 1 010 0 001 1
+bitshiftLeftPatternInteger = 118594395892020009487776355208569827604533106031317282499631442225660166292291;
+// Token Pattern: 2 2 2 2 0 2 0 3 2 1 3 1 2 2 0 2 0 2 3 1 3 1 2 2
+// Token Pattern Reversed: 2 2 1 3 1 3 2 0 2 0 2 2 1 3 1 2 3 0 2 0 2 2 2 2
+// Token Pattern Binary: 10 10 01 11 01 11 10 00 10 00 10 10 01 11 01 10 11 00 10 00 10 10 10 10
+bitshiftLeftPatternToken = 184136160954538;
+bitshiftLeftPatternTokenAmount = 24;
+
+// MODULO
+// Var Pattern: 1 2 0 4 1 1 5 3 0 5 4 4 1 5 5 1 4 5 3 0 5 1 1 1 5 5 1 4 1 1 5 3 0 5 4 4 1 5 5 1
+// Var Pattern Reversed: 1 5 5 1 4 4 5 0 3 5 1 1 4 1 5 5 1 1 1 5 0 3 5 4 1 5 5 1 4 4 5 0 3 5 1 1 4 0 2 1
+// Var Pattern Binary: 1 001 0 101 0 101 0 001 0 100 0 100 0 101 0 000 0 011 0 101 0 001 0 001 0 100 0 001 0 101 0 101 0 001 0 001 0 001 0 101 0 000 0 011 0 101 0 100 0 001 0 101 0 101 0 001 0 100 0 100 0 101 0 000 0 011 0 101 0 001 0 001 0 100 0 000 0 010 0 001 0
+moduloPatternInteger = 1704903872284808921753104422398176476448648495170;
+// Token Pattern: 2 2 2 0 3 3 1 0 2 0 3 3 1 2 2 0 3 3 1 1
+// Token Pattern Reversed: 1 1 3 3 0 2 2 1 3 3 0 2 0 1 3 3 0 2 2 2
+// Token Pattern Binary: 01 01 11 11 00 10 10 01 11 11 00 10 00 01 11 11 00 10 10 10
+moduloPatternToken = 408725626666;
+moduloPatternTokenAmount = 20;
+
+let placeHolderOfXI, placeHolderOfXJ, placeHolderOfXK, allowA, allowB;
+
+macro generalOptimiser {
+    // TODO: Check assign=firstVariable => Don't optimise if binding is already done with another variable
+
+/*
+General Idea:
+1. Check if Tokenstream can be mached
+2. If yes, check if Integerstream can be matched
+- This is done by looping through integerstream and bind integer to placeholders
+*/
+
+
+    canOptimised = 1; // default true (will be set to false if not optimisable)
+
+    placeholderForXOne = 0;
+    placeholderForXTwo = 0;
+    placeholderForXThree = 0;
+    placeholderForXFour = 0;
+    placeholderForXFive = 0;
+    placeholderForXSix = 0;
+    placeholderForXSeven = 0;
+    placeholderForXEight = 0;
+    placeholderForXNine = 0;
+    placeholderForXTen = 0;
+    placeholderForXEleven = 0;
+    placeholderForXTwelve = 0;
+
+    placeholderForXOneZeroFlag = 0;
+    placeholderForXTwoZeroFlag = 0;
+    placeholderForXThreeZeroFlag = 0;
+    placeholderForXFourZeroFlag = 0;
+    placeholderForXFiveZeroFlag = 0;
+    placeholderForXSixZeroFlag = 0;
+    placeholderForXSevenZeroFlag = 0;
+    placeholderForXEightZeroFlag = 0;
+    placeholderForXNineZeroFlag = 0;
+    placeholderForXTenZeroFlag = 0;
+    placeholderForXElevenZeroFlag = 0;
+    placeholderForXTwelveZeroFlag = 0;
+
+    tempOptimisationIntegerStream = integerStream;
+
+    totalAmountOfOptimisedIntegers = 0;
+    totalAmountOfOptimisedTokens = optimisationPatternTokenAmount * 2;
+
+    // check if Tokenstream can be matched
+    optimisationPatternTokenAmount = optimisationPatternTokenAmount * 2;
+    moduloTemp = constOne << optimisationPatternTokenAmount; // 2^optimisationPatternTokenAmount
+    TOKENSIZE = moduloTemp; // 2^optimisationPatternTokenAmount
+    temp = tokenStream % TOKENSIZE;
+
+    if temp == optimisationPatternToken then
+        // get current optimisation token
+        TOKENSIZE = 4; // 4 Tokenclasses = 2^2 = 4
+        optimisationToken = optimisationPatternToken % TOKENSIZE;
+        TOKENSIZE = 2;
+        optimisationPatternToken = optimisationPatternToken >> TOKENSIZE;
+
+        // define amount of numbers in token
+        // default:
+        amountOfNumbersInToken = 0; // end Token
+        if optimisationToken > 1 then // + and - Token
+            amountOfNumbersInToken = 3
+        else
+            if optimisationToken == 0 then // end Token
+                amountOfNumbersInToken = 1
+            end
+        end;
+
+        // check if Integerstream can be matched with optimisationPatternInteger
+        while optimisationPatternInteger > 1 do
+            // check if next number is a constant
+            isNextNumberAConstant = 0;
+            if optimisationToken > 1 then // + or - Token
+                if amountOfNumbersInToken == 1 then // last number in token
+                    isNextNumberAConstant = 1 // next number is a constant
+                end
+            end;
+
+            if amountOfNumbersInToken == 0 then // get next token and also its amount of numbers
+                // get current optimisation token
+                TOKENSIZE = 4; // 4 Tokenclasses = 2^2 = 4
+                optimisationToken = optimisationPatternToken % TOKENSIZE;
+                TOKENSIZE = 2;
+                optimisationPatternToken = optimisationPatternToken >> TOKENSIZE;
+
+                // define amount of numbers in token
+                // default:
+                if optimisationToken > 1 then // + and - Token
+                    amountOfNumbersInToken = 3
+                else
+                    if optimisationToken > 0 then
+                        amountOfNumbersInToken = 0 // end Token
+                    else  // while Token
+                        amountOfNumbersInToken = 1
+                    end
+                end
+            else
+                // get next integer from integerStream => tempIntegerFromIntegerStream
+                TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+                tempIntegerFromIntegerStream = tempOptimisationIntegerStream % TOKENSIZE;
+                TOKENSIZE = 4;
+                tempOptimisationIntegerStream = tempOptimisationIntegerStream >> TOKENSIZE;
+
+                TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+                temp = tempIntegerFromIntegerStream % TOKENSIZE;
+                TOKENSIZE = 1;
+                tempIntegerFromIntegerStream = tempIntegerFromIntegerStream >> TOKENSIZE;
+
+                totalAmountOfOptimisedIntegers = totalAmountOfOptimisedIntegers + 4;
+
+                while temp != 0 do
+                    // there are more bits to read
+                    TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+                    tempTemp = 3;
+                    tempIntegerFromIntegerStream = tempIntegerFromIntegerStream << tempTemp;
+                    tempTemp = tempOptimisationIntegerStream % TOKENSIZE;
+                    TOKENSIZE = 4;
+                    tempOptimisationIntegerStream = tempOptimisationIntegerStream >> TOKENSIZE;
+                    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+                    temp = tempTemp % TOKENSIZE;
+                    TOKENSIZE = 1;
+                    tempTemp = tempTemp >> TOKENSIZE;
+                    tempIntegerFromIntegerStream = tempIntegerFromIntegerStream + tempTemp;
+                    totalAmountOfOptimisedIntegers = totalAmountOfOptimisedIntegers + 4
+                end;
+
+                // get next integer from optimisationPatternInteger
+                TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+                tempIntegerFromPatternInteger = optimisationPatternInteger % TOKENSIZE;
+                TOKENSIZE = 4;
+                optimisationPatternInteger = optimisationPatternInteger >> TOKENSIZE;
+
+                TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+                temp = tempIntegerFromPatternInteger % TOKENSIZE;
+                TOKENSIZE = 1;
+                tempIntegerFromPatternInteger = tempIntegerFromPatternInteger >> TOKENSIZE;
+
+                while temp != 0 do
+                    // there are more bits to read
+                    TOKENSIZE = 16; // 16 = 2^4 (get 4 LSB bits)
+                    tempTemp = 3;
+                    tempIntegerFromPatternInteger = tempIntegerFromPatternInteger << tempTemp;
+                    tempTemp = optimisationPatternInteger % TOKENSIZE;
+                    TOKENSIZE = 4;
+                    optimisationPatternInteger = optimisationPatternInteger >> TOKENSIZE;
+                    TOKENSIZE = 2; // 2 = 2^1 (get 1 LSB bit)
+                    temp = tempTemp % TOKENSIZE;
+                    TOKENSIZE = 1;
+                    tempTemp = tempTemp >> TOKENSIZE;
+                    tempIntegerFromPatternInteger = tempIntegerFromPatternInteger + tempTemp
+                end;
+
+                // bind to variable
+                if isNextNumberAConstant == 1 then // just check if both values are equal
+                    if tempIntegerFromPatternInteger != tempIntegerFromIntegerStream then
+                        canOptimised = 0 // not optimisable
+                    end
+                else
+                    if tempIntegerFromPatternInteger == 1 then // x1 placeholder
+                        if placeholderForXOne == 0 then
+                            if placeholderForXOneZeroFlag == 0 then // x1 can be bound
+                                if tempIntegerFromIntegerStream == 0 then
+                                    placeholderForXOneZeroFlag = 1 // x1 placeholder is bound to x0
+                                else
+                                    placeholderForXOne = tempIntegerFromIntegerStream // bind integer from integerStream to x1 placeholder
+                                end
+                            else
+                                if tempIntegerFromIntegerStream != 0 then
+                                    canOptimised = 0 // not optimisable, because x1 placeholder is bound to x0 and incoming integer is not 0
+                                end
+                            end
+                        else
+                            // check if placeholderForXOne is equal to tempIntegerFromIntegerStream
+                            if placeholderForXOne != tempIntegerFromIntegerStream then
+                                canOptimised = 0 // not optimisable
+                            end
+                        end
+                    end;
+                    if tempIntegerFromPatternInteger == 2 then // x2 placeholder
+                        if placeholderForXTwo == 0 then
+                            if placeholderForXTwoZeroFlag == 0 then // x2 can be bound
+                                if tempIntegerFromIntegerStream == 0 then
+                                    placeholderForXTwoZeroFlag = 1 // x2 placeholder is bound to x0
+                                else
+                                    placeholderForXTwo = tempIntegerFromIntegerStream // bind integer from integerStream to x2 placeholder
+                                end
+                            else
+                                if tempIntegerFromIntegerStream != 0 then
+                                    canOptimised = 0 // not optimisable, because x2 placeholder is bound to x0 and incoming integer is not 0
+                                end
+                            end
+                        else
+                            // check if placeholderForXTwo is equal to tempIntegerFromIntegerStream
+                            if placeholderForXTwo != tempIntegerFromIntegerStream then
+                                canOptimised = 0 // not optimisable
+                            end
+                        end
+                    end;
+                    if tempIntegerFromPatternInteger == 3 then // x3 placeholder
+                        if placeholderForXThree == 0 then
+                            if placeholderForXThreeZeroFlag == 0 then // x3 can be bound
+                                if tempIntegerFromIntegerStream == 0 then
+                                    placeholderForXThreeZeroFlag = 1 // x3 placeholder is bound to x0
+                                else
+                                    placeholderForXThree = tempIntegerFromIntegerStream // bind integer from integerStream to x3 placeholder
+                                end
+                            else
+                                if tempIntegerFromIntegerStream != 0 then
+                                    canOptimised = 0 // not optimisable, because x3 placeholder is bound to x0 and incoming integer is not 0
+                                end
+                            end
+                        else
+                            // check if placeholderForXThree is equal to tempIntegerFromIntegerStream
+                            if placeholderForXThree != tempIntegerFromIntegerStream then
+                                canOptimised = 0 // not optimisable
+                            end
+                        end
+                    end;
+                    if tempIntegerFromPatternInteger == 4 then // x4 placeholder
+                        if placeholderForXFour == 0 then
+                            if placeholderForXFourZeroFlag == 0 then // x4 can be bound
+                                if tempIntegerFromIntegerStream == 0 then
+                                    placeholderForXFourZeroFlag = 1 // x4 placeholder is bound to x0
+                                else
+                                    placeholderForXFour = tempIntegerFromIntegerStream // bind integer from integerStream to x4 placeholder
+                                end
+                            else
+                                if tempIntegerFromIntegerStream != 0 then
+                                    canOptimised = 0 // not optimisable, because x4 placeholder is bound to x0 and incoming integer is not 0
+                                end
+                            end
+                        else
+                            // check if placeholderForXFour is equal to tempIntegerFromIntegerStream
+                            if placeholderForXFour != tempIntegerFromIntegerStream then
+                                canOptimised = 0 // not optimisable
+                            end
+                        end
+                    end;
+                    if tempIntegerFromPatternInteger == 5 then // x5 placeholder
+                        if placeholderForXFive == 0 then
+                            if placeholderForXFiveZeroFlag == 0 then // x5 can be bound
+                                if tempIntegerFromIntegerStream == 0 then
+                                    placeholderForXFiveZeroFlag = 1 // x5 placeholder is bound to x0
+                                else
+                                    placeholderForXFive = tempIntegerFromIntegerStream // bind integer from integerStream to x5 placeholder
+                                end
+                            else
+                                if tempIntegerFromIntegerStream != 0 then
+                                    canOptimised = 0 // not optimisable, because x5 placeholder is bound to x0 and incoming integer is not 0
+                                end
+                            end
+                        else
+                            // check if placeholderForXFive is equal to tempIntegerFromIntegerStream
+                            if placeholderForXFive != tempIntegerFromIntegerStream then
+                                canOptimised = 0 // not optimisable
+                            end
+                        end
+                    end;
+                    if tempIntegerFromPatternInteger == 6 then // x6 placeholder
+                        if placeholderForXSix == 0 then
+                            if placeholderForXSixZeroFlag == 0 then // x6 can be bound
+                                if tempIntegerFromIntegerStream == 0 then
+                                    placeholderForXSixZeroFlag = 1 // x6 placeholder is bound to x0
+                                else
+                                    placeholderForXSix = tempIntegerFromIntegerStream // bind integer from integerStream to x6 placeholder
+                                end
+                            else
+                                if tempIntegerFromIntegerStream != 0 then
+                                    canOptimised = 0 // not optimisable, because x6 placeholder is bound to x0 and incoming integer is not 0
+                                end
+                            end
+                        else
+                            // check if placeholderForXSix is equal to tempIntegerFromIntegerStream
+                            if placeholderForXSix != tempIntegerFromIntegerStream then
+                                canOptimised = 0 // not optimisable
+                            end
+                        end
+                    end;
+                    if tempIntegerFromPatternInteger == 7 then // x7 placeholder
+                        if placeholderForXSeven == 0 then
+                            if placeholderForXSevenZeroFlag == 0 then // x7 can be bound
+                                if tempIntegerFromIntegerStream == 0 then
+                                    placeholderForXSevenZeroFlag = 1 // x7 placeholder is bound to x0
+                                else
+                                    placeholderForXSeven = tempIntegerFromIntegerStream // bind integer from integerStream to x7 placeholder
+                                end
+                            else
+                                if tempIntegerFromIntegerStream != 0 then
+                                    canOptimised = 0 // not optimisable, because x7 placeholder is bound to x0 and incoming integer is not 0
+                                end
+                            end
+                        else
+                            // check if placeholderForXSeven is equal to tempIntegerFromIntegerStream
+                            if placeholderForXSeven != tempIntegerFromIntegerStream then
+                                canOptimised = 0 // not optimisable
+                            end
+                        end
+                    end;
+                    if tempIntegerFromPatternInteger == 8 then // x8 placeholder
+                        if placeholderForXEight == 0 then
+                            if placeholderForXEightZeroFlag == 0 then // x8 can be bound
+                                if tempIntegerFromIntegerStream == 0 then
+                                    placeholderForXEightZeroFlag = 1 // x8 placeholder is bound to x0
+                                else
+                                    placeholderForXEight = tempIntegerFromIntegerStream // bind integer from integerStream to x8 placeholder
+                                end
+                            else
+                                if tempIntegerFromIntegerStream != 0 then
+                                    canOptimised = 0 // not optimisable, because x8 placeholder is bound to x0 and incoming integer is not 0
+                                end
+                            end
+                        else
+                            // check if placeholderForXEight is equal to tempIntegerFromIntegerStream
+                            if placeholderForXEight != tempIntegerFromIntegerStream then
+                                canOptimised = 0 // not optimisable
+                            end
+                        end
+                    end;
+                    if tempIntegerFromPatternInteger == 9 then // x9 placeholder
+                        if placeholderForXNine == 0 then
+                            if placeholderForXNineZeroFlag == 0 then // x9 can be bound
+                                if tempIntegerFromIntegerStream == 0 then
+                                    placeholderForXNineZeroFlag = 1 // x9 placeholder is bound to x0
+                                else
+                                    placeholderForXNine = tempIntegerFromIntegerStream // bind integer from integerStream to x9 placeholder
+                                end
+                            else
+                                if tempIntegerFromIntegerStream != 0 then
+                                    canOptimised = 0 // not optimisable, because x9 placeholder is bound to x0 and incoming integer is not 0
+                                end
+                            end
+                        else
+                            // check if placeholderForXNine is equal to tempIntegerFromIntegerStream
+                            if placeholderForXNine != tempIntegerFromIntegerStream then
+                                canOptimised = 0 // not optimisable
+                            end
+                        end
+                    end;
+                    if tempIntegerFromPatternInteger == 10 then // x10 placeholder
+                        if placeholderForXTen == 0 then
+                            if placeholderForXTenZeroFlag == 0 then // x10 can be bound
+                                if tempIntegerFromIntegerStream == 0 then
+                                    placeholderForXTenZeroFlag = 1 // x10 placeholder is bound to x0
+                                else
+                                    placeholderForXTen = tempIntegerFromIntegerStream // bind integer from integerStream to x10 placeholder
+                                end
+                            else
+                                if tempIntegerFromIntegerStream != 0 then
+                                    canOptimised = 0 // not optimisable, because x10 placeholder is bound to x0 and incoming integer is not 0
+                                end
+                            end
+                        else
+                            // check if placeholderForXTen is equal to tempIntegerFromIntegerStream
+                            if placeholderForXTen != tempIntegerFromIntegerStream then
+                                canOptimised = 0 // not optimisable
+                            end
+                        end
+                    end;
+                    if tempIntegerFromPatternInteger == 11 then // x11 placeholder
+                        if placeholderForXEleven == 0 then
+                            if placeholderForXElevenZeroFlag == 0 then // x11 can be bound
+                                if tempIntegerFromIntegerStream == 0 then
+                                    placeholderForXElevenZeroFlag = 1 // x11 placeholder is bound to x0
+                                else
+                                    placeholderForXEleven = tempIntegerFromIntegerStream // bind integer from integerStream to x11 placeholder
+                                end
+                            else
+                                if tempIntegerFromIntegerStream != 0 then
+                                    canOptimised = 0 // not optimisable, because x11 placeholder is bound to x0 and incoming integer is not 0
+                                end
+                            end
+                        else
+                            // check if placeholderForXEleven is equal to tempIntegerFromIntegerStream
+                            if placeholderForXEleven != tempIntegerFromIntegerStream then
+                                canOptimised = 0 // not optimisable
+                            end
+                        end
+                    end;
+                    if tempIntegerFromPatternInteger == 12 then // x12 placeholder
+                        if placeholderForXTwelve == 0 then
+                            if placeholderForXTwelveZeroFlag == 0 then // x12 can be bound
+                                if tempIntegerFromIntegerStream == 0 then
+                                    placeholderForXTwelveZeroFlag = 1 // x12 placeholder is bound to x0
+                                else
+                                    placeholderForXTwelve = tempIntegerFromIntegerStream // bind integer from integerStream to x12 placeholder
+                                end
+                            else
+                                if tempIntegerFromIntegerStream != 0 then
+                                    canOptimised = 0 // not optimisable, because x12 placeholder is bound to x0 and incoming integer is not 0
+                                end
+                            end
+                        else
+                            // check if placeholderForXTwelve is equal to tempIntegerFromIntegerStream
+                            if placeholderForXTwelve != tempIntegerFromIntegerStream then
+                                canOptimised = 0 // not optimisable
+                            end
+                        end
+                    end
+                end;
+
+                if canOptimised == 0 then
+                    // not optimisable, break loop
+                    optimisationPatternInteger = 0
+                end;
+
+                amountOfNumbersInToken = amountOfNumbersInToken - 1 // one number less to read
+            end
+        end;
+
+        if canOptimised == 1 then
+            // map variables (placeholder bindings) to local variable index
+            // attention: there is a special case for x0 => highestI
+            // every other variable gets decreased by 1 because x1 starts by 0
+            if placeholderForXOne > 0 then placeholderForXOne = placeholderForXOne - 1 else if placeholderForXOneZeroFlag == 1 then placeholderForXOne = highestI end end;
+            if placeholderForXTwo > 0 then placeholderForXTwo = placeholderForXTwo - 1 else if placeholderForXTwoZeroFlag == 1 then placeholderForXTwo = highestI end end;
+            if placeholderForXThree > 0 then placeholderForXThree = placeholderForXThree - 1 else if placeholderForXThreeZeroFlag == 1 then placeholderForXThree = highestI end end;
+            if placeholderForXFour > 0 then placeholderForXFour = placeholderForXFour - 1 else if placeholderForXFourZeroFlag == 1 then placeholderForXFour = highestI end end;
+            if placeholderForXFive > 0 then placeholderForXFive = placeholderForXFive - 1 else if placeholderForXFiveZeroFlag == 1 then placeholderForXFive = highestI end end;
+            if placeholderForXSix > 0 then placeholderForXSix = placeholderForXSix - 1 else if placeholderForXSixZeroFlag == 1 then placeholderForXSix = highestI end end;
+            if placeholderForXSeven > 0 then placeholderForXSeven = placeholderForXSeven - 1 else if placeholderForXSevenZeroFlag == 1 then placeholderForXSeven = highestI end end;
+            if placeholderForXEight > 0 then placeholderForXEight = placeholderForXEight - 1 else if placeholderForXEightZeroFlag == 1 then placeholderForXEight = highestI end end;
+            if placeholderForXNine > 0 then placeholderForXNine = placeholderForXNine - 1 else if placeholderForXNineZeroFlag == 1 then placeholderForXNine = highestI end end;
+            if placeholderForXTen > 0 then placeholderForXTen = placeholderForXTen - 1 else if placeholderForXTenZeroFlag == 1 then placeholderForXTen = highestI end end;
+            if placeholderForXEleven > 0 then placeholderForXEleven = placeholderForXEleven - 1 else if placeholderForXElevenZeroFlag == 1 then placeholderForXEleven = highestI end end;
+            if placeholderForXTwelve > 0 then placeholderForXTwelve = placeholderForXTwelve - 1 else if placeholderForXTwelveZeroFlag == 1 then placeholderForXTwelve = highestI end end;
+        
+            // Problem: xi, xj and xk can all be the same value. Every other placeholder must be unique and not equal to xi, xj or xk.
+            // if placeholderForXOne is xi, xj or xk and placeholderForXTwo is also xi, xj or xk then allow this else set canOptimised to 0
+            allowA = 0;
+            if placeHolderOfXI == 1 then
+                allowA = 1 // placeholderForXOne is xi
+            else    
+                if placeHolderOfXJ == 1 then
+                    allowA = 1 // placeholderForXOne is xj
+                else
+                    if placeHolderOfXK == 1 then
+                        allowA = 1 // placeholderForXOne is xk
+                    end
+                end
+            end;
+            if placeholderForXOne == placeholderForXTwo then
+                if allowA == 0 then
+                    canOptimised = 0 
+                else
+                    allowB = 0;
+                    if placeHolderOfXI == 2 then
+                        allowB = 1 // placeholderForXTwo is xi
+                    else    
+                        if placeHolderOfXJ == 2 then
+                            allowB = 1 // placeholderForXTwo is xj
+                        else
+                            if placeHolderOfXK == 2 then
+                                allowB = 1 // placeholderForXTwo is xk
+                            end
+                        end
+                    end;
+
+                    if allowB == 0 then
+                        canOptimised = 0 // not optimisable, because placeholderForXOne and placeholderForXTwo are not allowed to be the same
+                    end
+                end
+            end;
+            if placeholderForXOne == placeholderForXThree then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 3 then allowB = 1 else if placeHolderOfXJ == 3 then allowB = 1 else if placeHolderOfXK == 3 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXOne == placeholderForXFour then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 4 then allowB = 1 else if placeHolderOfXJ == 4 then allowB = 1 else if placeHolderOfXK == 4 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXOne == placeholderForXFive then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 5 then allowB = 1 else if placeHolderOfXJ == 5 then allowB = 1 else if placeHolderOfXK == 5 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXOne == placeholderForXSix then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 6 then allowB = 1 else if placeHolderOfXJ == 6 then allowB = 1 else if placeHolderOfXK == 6 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXOne == placeholderForXSeven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 7 then allowB = 1 else if placeHolderOfXJ == 7 then allowB = 1 else if placeHolderOfXK == 7 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXOne == placeholderForXEight then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 8 then allowB = 1 else if placeHolderOfXJ == 8 then allowB = 1 else if placeHolderOfXK == 8 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXOne == placeholderForXNine then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 9 then allowB = 1 else if placeHolderOfXJ == 9 then allowB = 1 else if placeHolderOfXK == 9 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXOne == placeholderForXTen then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 10 then allowB = 1 else if placeHolderOfXJ == 10 then allowB = 1 else if placeHolderOfXK == 10 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXOne == placeholderForXEleven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 11 then allowB = 1 else if placeHolderOfXJ == 11 then allowB = 1 else if placeHolderOfXK == 11 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXOne == placeholderForXTwelve then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 12 then allowB = 1 else if placeHolderOfXJ == 12 then allowB = 1 else if placeHolderOfXK == 12 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+
+
+            allowA = 0; if placeHolderOfXI == 2 then allowA = 1 else if placeHolderOfXJ == 2 then allowA = 1 else if placeHolderOfXK == 2 then allowA = 1 end end end;
+            if placeholderForXTwo == placeholderForXThree then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 3 then allowB = 1 else if placeHolderOfXJ == 3 then allowB = 1 else if placeHolderOfXK == 3 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXTwo == placeholderForXFour then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 4 then allowB = 1 else if placeHolderOfXJ == 4 then allowB = 1 else if placeHolderOfXK == 4 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXTwo == placeholderForXFive then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 5 then allowB = 1 else if placeHolderOfXJ == 5 then allowB = 1 else if placeHolderOfXK == 5 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXTwo == placeholderForXSix then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 6 then allowB = 1 else if placeHolderOfXJ == 6 then allowB = 1 else if placeHolderOfXK == 6 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXTwo == placeholderForXSeven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 7 then allowB = 1 else if placeHolderOfXJ == 7 then allowB = 1 else if placeHolderOfXK == 7 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXTwo == placeholderForXEight then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 8 then allowB = 1 else if placeHolderOfXJ == 8 then allowB = 1 else if placeHolderOfXK == 8 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXTwo == placeholderForXNine then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 9 then allowB = 1 else if placeHolderOfXJ == 9 then allowB = 1 else if placeHolderOfXK == 9 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXTwo == placeholderForXTen then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 10 then allowB = 1 else if placeHolderOfXJ == 10 then allowB = 1 else if placeHolderOfXK == 10 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXTwo == placeholderForXEleven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 11 then allowB = 1 else if placeHolderOfXJ == 11 then allowB = 1 else if placeHolderOfXK == 11 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXTwo == placeholderForXTwelve then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 12 then allowB = 1 else if placeHolderOfXJ == 12 then allowB = 1 else if placeHolderOfXK == 12 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+
+
+            allowA = 0; if placeHolderOfXI == 3 then allowA = 1 else if placeHolderOfXJ == 3 then allowA = 1 else if placeHolderOfXK == 3 then allowA = 1 end end end;
+            if placeholderForXThree == placeholderForXFour then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 4 then allowB = 1 else if placeHolderOfXJ == 4 then allowB = 1 else if placeHolderOfXK == 4 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXThree == placeholderForXFive then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 5 then allowB = 1 else if placeHolderOfXJ == 5 then allowB = 1 else if placeHolderOfXK == 5 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXThree == placeholderForXSix then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 6 then allowB = 1 else if placeHolderOfXJ == 6 then allowB = 1 else if placeHolderOfXK == 6 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXThree == placeholderForXSeven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 7 then allowB = 1 else if placeHolderOfXJ == 7 then allowB = 1 else if placeHolderOfXK == 7 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXThree == placeholderForXEight then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 8 then allowB = 1 else if placeHolderOfXJ == 8 then allowB = 1 else if placeHolderOfXK == 8 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXThree == placeholderForXNine then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 9 then allowB = 1 else if placeHolderOfXJ == 9 then allowB = 1 else if placeHolderOfXK == 9 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXThree == placeholderForXTen then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 10 then allowB = 1 else if placeHolderOfXJ == 10 then allowB = 1 else if placeHolderOfXK == 10 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXThree == placeholderForXEleven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 11 then allowB = 1 else if placeHolderOfXJ == 11 then allowB = 1 else if placeHolderOfXK == 11 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXThree == placeholderForXTwelve then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 12 then allowB = 1 else if placeHolderOfXJ == 12 then allowB = 1 else if placeHolderOfXK == 12 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+
+
+            allowA = 0; if placeHolderOfXI == 4 then allowA = 1 else if placeHolderOfXJ == 4 then allowA = 1 else if placeHolderOfXK == 4 then allowA = 1 end end end;
+            if placeholderForXFour == placeholderForXFive then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 5 then allowB = 1 else if placeHolderOfXJ == 5 then allowB = 1 else if placeHolderOfXK == 5 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXFour == placeholderForXSix then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 6 then allowB = 1 else if placeHolderOfXJ == 6 then allowB = 1 else if placeHolderOfXK == 6 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXFour == placeholderForXSeven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 7 then allowB = 1 else if placeHolderOfXJ == 7 then allowB = 1 else if placeHolderOfXK == 7 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXFour == placeholderForXEight then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 8 then allowB = 1 else if placeHolderOfXJ == 8 then allowB = 1 else if placeHolderOfXK == 8 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXFour == placeholderForXNine then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 9 then allowB = 1 else if placeHolderOfXJ == 9 then allowB = 1 else if placeHolderOfXK == 9 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXFour == placeholderForXTen then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 10 then allowB = 1 else if placeHolderOfXJ == 10 then allowB = 1 else if placeHolderOfXK == 10 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXFour == placeholderForXEleven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 11 then allowB = 1 else if placeHolderOfXJ == 11 then allowB = 1 else if placeHolderOfXK == 11 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXFour == placeholderForXTwelve then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 12 then allowB = 1 else if placeHolderOfXJ == 12 then allowB = 1 else if placeHolderOfXK == 12 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+
+
+            allowA = 0; if placeHolderOfXI == 5 then allowA = 1 else if placeHolderOfXJ == 5 then allowA = 1 else if placeHolderOfXK == 5 then allowA = 1 end end end;
+            if placeholderForXFive == placeholderForXSix then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 6 then allowB = 1 else if placeHolderOfXJ == 6 then allowB = 1 else if placeHolderOfXK == 6 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXFive == placeholderForXSeven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 7 then allowB = 1 else if placeHolderOfXJ == 7 then allowB = 1 else if placeHolderOfXK == 7 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXFive == placeholderForXEight then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 8 then allowB = 1 else if placeHolderOfXJ == 8 then allowB = 1 else if placeHolderOfXK == 8 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXFive == placeholderForXNine then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 9 then allowB = 1 else if placeHolderOfXJ == 9 then allowB = 1 else if placeHolderOfXK == 9 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXFive == placeholderForXTen then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 10 then allowB = 1 else if placeHolderOfXJ == 10 then allowB = 1 else if placeHolderOfXK == 10 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXFive == placeholderForXEleven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 11 then allowB = 1 else if placeHolderOfXJ == 11 then allowB = 1 else if placeHolderOfXK == 11 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXFive == placeholderForXTwelve then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 12 then allowB = 1 else if placeHolderOfXJ == 12 then allowB = 1 else if placeHolderOfXK == 12 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+
+
+            allowA = 0; if placeHolderOfXI == 6 then allowA = 1 else if placeHolderOfXJ == 6 then allowA = 1 else if placeHolderOfXK == 6 then allowA = 1 end end end;
+            if placeholderForXSix == placeholderForXSeven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 7 then allowB = 1 else if placeHolderOfXJ == 7 then allowB = 1 else if placeHolderOfXK == 7 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXSix == placeholderForXEight then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 8 then allowB = 1 else if placeHolderOfXJ == 8 then allowB = 1 else if placeHolderOfXK == 8 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXSix == placeholderForXNine then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 9 then allowB = 1 else if placeHolderOfXJ == 9 then allowB = 1 else if placeHolderOfXK == 9 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXSix == placeholderForXTen then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 10 then allowB = 1 else if placeHolderOfXJ == 10 then allowB = 1 else if placeHolderOfXK == 10 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXSix == placeholderForXEleven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 11 then allowB = 1 else if placeHolderOfXJ == 11 then allowB = 1 else if placeHolderOfXK == 11 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXSix == placeholderForXTwelve then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 12 then allowB = 1 else if placeHolderOfXJ == 12 then allowB = 1 else if placeHolderOfXK == 12 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+
+
+            allowA = 0; if placeHolderOfXI == 7 then allowA = 1 else if placeHolderOfXJ == 7 then allowA = 1 else if placeHolderOfXK == 7 then allowA = 1 end end end;
+            if placeholderForXSeven == placeholderForXEight then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 8 then allowB = 1 else if placeHolderOfXJ == 8 then allowB = 1 else if placeHolderOfXK == 8 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXSeven == placeholderForXNine then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 9 then allowB = 1 else if placeHolderOfXJ == 9 then allowB = 1 else if placeHolderOfXK == 9 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXSeven == placeholderForXTen then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 10 then allowB = 1 else if placeHolderOfXJ == 10 then allowB = 1 else if placeHolderOfXK == 10 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXSeven == placeholderForXEleven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 11 then allowB = 1 else if placeHolderOfXJ == 11 then allowB = 1 else if placeHolderOfXK == 11 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXSeven == placeholderForXTwelve then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 12 then allowB = 1 else if placeHolderOfXJ == 12 then allowB = 1 else if placeHolderOfXK == 12 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+
+
+            allowA = 0; if placeHolderOfXI == 8 then allowA = 1 else if placeHolderOfXJ == 8 then allowA = 1 else if placeHolderOfXK == 8 then allowA = 1 end end end;
+            if placeholderForXEight == placeholderForXNine then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 9 then allowB = 1 else if placeHolderOfXJ == 9 then allowB = 1 else if placeHolderOfXK == 9 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXEight == placeholderForXTen then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 10 then allowB = 1 else if placeHolderOfXJ == 10 then allowB = 1 else if placeHolderOfXK == 10 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXEight == placeholderForXEleven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 11 then allowB = 1 else if placeHolderOfXJ == 11 then allowB = 1 else if placeHolderOfXK == 11 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXEight == placeholderForXTwelve then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 12 then allowB = 1 else if placeHolderOfXJ == 12 then allowB = 1 else if placeHolderOfXK == 12 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+
+
+            allowA = 0; if placeHolderOfXI == 9 then allowA = 1 else if placeHolderOfXJ == 9 then allowA = 1 else if placeHolderOfXK == 9 then allowA = 1 end end end;
+            if placeholderForXNine == placeholderForXTen then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 10 then allowB = 1 else if placeHolderOfXJ == 10 then allowB = 1 else if placeHolderOfXK == 10 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXNine == placeholderForXEleven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 11 then allowB = 1 else if placeHolderOfXJ == 11 then allowB = 1 else if placeHolderOfXK == 11 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXNine == placeholderForXTwelve then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 12 then allowB = 1 else if placeHolderOfXJ == 12 then allowB = 1 else if placeHolderOfXK == 12 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+
+
+            allowA = 0; if placeHolderOfXI == 10 then allowA = 1 else if placeHolderOfXJ == 10 then allowA = 1 else if placeHolderOfXK == 10 then allowA = 1 end end end;
+            if placeholderForXTen == placeholderForXEleven then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 11 then allowB = 1 else if placeHolderOfXJ == 11 then allowB = 1 else if placeHolderOfXK == 11 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+            if placeholderForXTen == placeholderForXTwelve then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 12 then allowB = 1 else if placeHolderOfXJ == 12 then allowB = 1 else if placeHolderOfXK == 12 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end;
+
+
+            allowA = 0; if placeHolderOfXI == 11 then allowA = 1 else if placeHolderOfXJ == 11 then allowA = 1 else if placeHolderOfXK == 11 then allowA = 1 end end end;
+            if placeholderForXEleven == placeholderForXTwelve then if allowA == 0 then canOptimised = 0 else allowB = 0; if placeHolderOfXI == 12 then allowB = 1 else if placeHolderOfXJ == 12 then allowB = 1 else if placeHolderOfXK == 12 then allowB = 1 end end end; if allowB == 0 then canOptimised = 0 end end end
+        end
+    else
+        canOptimised = 0 // not optimisable
+    end
+}
+
