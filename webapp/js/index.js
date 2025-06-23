@@ -185,7 +185,7 @@ document.addEventListener("DOMContentLoaded", () => {
   compileBtn.addEventListener("click", async () => {
     const steps = [
       { id: 'run', label: 'Prepare and encode input', status: 'pending' },
-      { id: 'selfCompile', label: 'Load self compiler', status: 'pending' },
+      { id: 'selfCompile', label: 'Load self compiler instance ' + getSelectedCompiler().name, status: 'pending' },
       { id: 'execute', label: 'Compile with self compiler', status: 'pending' }
     ];
     renderPipelineStatus(steps);
@@ -220,7 +220,7 @@ document.addEventListener("DOMContentLoaded", () => {
         "ASCII Hex representation:\n" + truncateString(hexString) + "\n\n" +
         "ASCII BigInt:\n" + truncateString(asciiBigInt.toString()) + "\n\n" +
         "Byte count:\n" + byteCount + "\n\n" +
-        "Running self_compiler.wasm...";
+        "Running selected self compiler";
       outputArea.style.color = "#2196f3";
 
       console.log("WHILE code converted to ASCII hex:", hexString);
