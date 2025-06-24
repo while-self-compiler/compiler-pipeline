@@ -40,16 +40,16 @@ const TRANSPILERS = [
   {
     id: 'pydide',
     label: 'pyodide',
-    tooltip: 'Transpiler using Pyodide, which interprets the transpiler and the input file (therefor considered slower then py2wasm).',
+    tooltip: 'Transpiler using Pyodide, which interprets the transpiler and the input file (therefore considered slower then py2wasm).',
     type: 1
-  },
+  }/*,
   {
     id: 'py2wasm',
     label: 'py2wasm',
     tooltip: 'Using Py2WASM Tool, which uses Nuitka (Python Self-Compiler) to produce WASM.',
     type: 2,
     file: 'transpiler.wasm'
-  }
+  }*/
 ]
 
 
@@ -63,7 +63,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeSettingsBtn = document.getElementById("close-settings");
 
   generateIterationRadios('iteration-container', COMPILERS, 'iteration-it1');
-  generateTranspilerRadios('transpiler-container', TRANSPILERS, 'py2wasm'); // TODO: Load pyodide async in background
+  generateTranspilerRadios('transpiler-container', TRANSPILERS, 'pydide'); // TODO: Load pyodide async in background
 
   let isUpdatingToolbar = false; // recursion guard
   function updateVariableToolbar(code) {
@@ -454,10 +454,9 @@ document.addEventListener("DOMContentLoaded", () => {
           // Pyodide
           result = await transpile(["transpile.py", code]);
           updatePipelineStep('transpile', 'success');
-        } else if (selectedTranspiler.type === 2) {
-          // WASM transpiler with string input
-          result = "TODO"
-        } else {
+        } /*else if (selectedTranspiler.type === 2) {
+          // TODO: Py2Wasm
+        } */ else {
           throw new Error("Unknown transpiler type.");
         }
       } catch (error) {
@@ -753,7 +752,7 @@ function getSelectedCompiler() {
 
 function getSelectedTranspiler() {
   const radios = document.querySelectorAll('input[name="transpiler"]');
-  let selected = TRANSPILERS[1]; // Default py2wasm
+  let selected = TRANSPILERS[0]; // Default pyodide
   radios.forEach(radio => {
     if (radio.checked) {
       selected = TRANSPILERS.find(c => c.label.toLowerCase() === radio.value);
