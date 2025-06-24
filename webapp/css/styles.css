@@ -379,6 +379,7 @@ footer {
   font-size: 14px;
   line-height: 1.5;
   padding: 10px;
+  height: 400px !important; /* overwrite from default */
 }
 
 .cm-s-material.CodeMirror, .cm-s-material .CodeMirror-gutters {
