@@ -3,7 +3,11 @@
 A Compiler to compile a theoretical minimal protolanguage called WHILE to WebAssembly (WASM). It includes 2 main stages of bootstrapping:
 - Stage 1: A minimal compiler that compiles a simple WHILE language to WASM written in Python. 
 - Stage 2: A WHILE to WASM compiler written in WHILE.
-    - To make it easier to write the compiler in WHILE, the language is extended to E-WHILE (Extended WHILE). 
+    - To make it easier to write the compiler in WHILE, the language is extended to E-WHILE (Extended WHILE).
+ 
+## Demo
+
+As a demo you can already visit the [online editor](https://www.valenzelektron.com/projects/self_compiler/webapp/index.html) which runs completely on the client.
 
 ## Contents
 - [A WHILE to WASM compiler in WHILE](#a-while-to-wasm-compiler-in-while)
