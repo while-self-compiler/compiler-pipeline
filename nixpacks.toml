@@ -1,0 +1,18 @@
+[providers]
+python = "3.11"
+
+[phases.setup]
+nixPkgs = ["python311", "python311Packages.pip", "openjdk17"]
+
+[phases.install]
+cmds = [
+    "pip install --quiet antlr4-python3-runtime"
+]
+
+[phases.build]
+cmds = [
+    "cd webapp/transpiler/src/parser && chmod +x generate_parser.sh && ./generate_parser.sh"
+]
+
+[start]
+cmd = "echo 'Build complete. Webapp directory is ready to be served as static content.'"
