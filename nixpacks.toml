@@ -1,16 +1,11 @@
-providers = ["python"]
+providers = []
 
 [phases.setup]
-nixPkgs = ["python311", "python311Packages.pip", "openjdk17"]
-
-[phases.install]
-cmds = [
-    "pip install --quiet antlr4-python3-runtime"
-]
+nixPkgs = ["openjdk17"]
 
 [phases.build]
 cmds = [
-    "cd webapp/transpiler/src/parser && chmod +x generate_parser.sh && ./generate_parser.sh"
+    "cd webapp/transpiler/src/parser && java -Xmx500M -cp antlr-4.13.2-complete.jar org.antlr.v4.Tool -Dlanguage=Python3 -o generated_ewhile_parser -package generated_while_parser ewhile.g4 -visitor"
 ]
 
 [start]
