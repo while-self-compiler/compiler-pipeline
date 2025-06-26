@@ -1,5 +1,4 @@
-[providers]
-python = "3.11"
+providers = ["python"]
 
 [phases.setup]
 nixPkgs = ["python311", "python311Packages.pip", "openjdk17"]
