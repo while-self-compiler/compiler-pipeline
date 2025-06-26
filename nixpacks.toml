@@ -1,4 +1,4 @@
-providers = []
+providers = ["java"]
 
 [phases.setup]
 nixPkgs = ["openjdk17"]
