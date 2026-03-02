@@ -5,6 +5,8 @@ A Compiler to compile a theoretical minimal protolanguage called WHILE to WebAss
 - Stage 2: A WHILE to WASM compiler written in WHILE.
     - To make it easier to write the compiler in WHILE, the language is extended to E-WHILE (Extended WHILE).
  
+For more technical and formal informations please read our [paper](https://doi.org/10.21256/zhaw-34982) (german only).
+ 
 ## Demo
 
 As a demo you can already visit the [online editor](https://www.valenzelektron.com/projects/self_compiler/webapp/index.html) which runs completely on the client.
@@ -271,6 +273,7 @@ this is a multi-line comment
 
 ## Self-Compiler
 The self-compiler is a WHILE to WASM compiler that is written in E-WHILE. It consists of two main components: the lexer and the generator. For more information, see the [Self-Compiler Readme](self_compiler/README.md).
+For more informations (code optimisations etc.) please have a look at our [paper](https://doi.org/10.21256/zhaw-34982) (german only).
 
 ## 3-Pass-Bootstrapping-Test
 Once the self-compiler S has been compiled using the minimal bootstrap compiler M, it results in an independent, self-hosting WHILE compiler. This enables an iterative, three-pass bootstrapping process:
