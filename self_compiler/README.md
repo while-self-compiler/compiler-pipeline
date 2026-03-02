@@ -1,6 +1,7 @@
 # WHILE Self-Compiler
 
-This is a self-compiler for the WHILE language that generates WebAssembly (WASM) binary code.
+This is an overview of the self-compiler for the WHILE language that generates WebAssembly (WASM) binary code.
+For more technical and formal informations please read our [paper](https://doi.org/10.21256/zhaw-34982) (german only).
 
 ## Overview
 
@@ -78,3 +79,4 @@ with the following optimized code:
 x2 = x2 + x1;
 x1 = x1 - x1; (x1 = 0)
 ```
+There are other optimisations. See our paper for more informations.
